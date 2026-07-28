@@ -1,0 +1,25 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Les commentaires XML sont facultatifs : on garde la doc activee sans exiger
+         un <summary> sur chaque membre public (CS1591), ni la documentation de tous les
+         parametres des qu'un seul est commente (CS1573). Documenter le seul parametre
+         qui merite une explication doit rester possible. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Product>ZiaConvert</Product>
+    <Company>ZiaConvert</Company>
+    <Version>0.1.0</Version>
+    <Authors>ZiaConvert</Authors>
+  </PropertyGroup>
+
+</Project>

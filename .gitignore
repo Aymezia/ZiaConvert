@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+artifacts/
+tools/
+TestResults/
+
+# Sortie de publication (executables autonomes, ffmpeg embarque) : livree en
+# asset de release, jamais versionnee. ffmpeg.exe seul depasse la limite
+# GitHub de 100 Mo par fichier.
+dist/

@@ -1,0 +1,278 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ZiaConvert.App.ZiaConvertApp"
+             RequestedThemeVariant="Dark">
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- =====================================================================
+         Boutons — coins genereusement arrondis, pas de bordure sur le bouton
+         d'action : c'est le contraste de couleur qui porte l'accent, pas un trait.
+         ===================================================================== -->
+    <Style Selector="Button.accent">
+      <Setter Property="Background" Value="{DynamicResource ZiaAccent}" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaBackground}" />
+      <Setter Property="Padding" Value="20,11" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.accent:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ZiaAccentHover}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource ZiaBackground}" />
+    </Style>
+    <Style Selector="Button.accent:disabled /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ZiaSurfaceHigh}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource ZiaTextFaint}" />
+    </Style>
+
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="{DynamicResource ZiaSurfaceHigh}" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextMuted}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="15,9" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ZiaSurfaceHigher}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource ZiaText}" />
+    </Style>
+
+    <!-- Bouton d'annulation d'une ligne : discret au repos, rouge chaud au survol,
+         pour ne pas transformer la liste en sapin de Noel. -->
+    <Style Selector="Button.rowAction">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextFaint}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="CornerRadius" Value="15" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.rowAction:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#332B211A" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource ZiaError}" />
+    </Style>
+
+    <!-- =====================================================================
+         Typographie — le proportionnel (Inter) porte l'essentiel du texte ;
+         le mono ne sert plus qu'aux valeurs vraiment numeriques (poids, debit,
+         pourcentage) qui gagnent a s'aligner en colonnes. Le mettre partout
+         donnait un effet "terminal" froid — precisement ce qu'on evite ici.
+         ===================================================================== -->
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaText}" />
+    </Style>
+
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="LetterSpacing" Value="0.4" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextMuted}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextMuted}" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="{DynamicResource ZiaMonoFontFamily}" />
+    </Style>
+
+    <Style Selector="Expander.section">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="Expander.section /template/ ToggleButton#ExpanderHeader">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="6,12" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Expander.section /template/ ToggleButton#ExpanderHeader:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ZiaSurfaceHigh}" />
+    </Style>
+    <Style Selector="Expander.section /template/ ContentPresenter#ExpanderContent">
+      <Setter Property="Padding" Value="6,6,6,20" />
+    </Style>
+
+    <Style Selector="TextBlock.sectionTitle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaText}" />
+    </Style>
+    <Style Selector="TextBlock.fieldLabel">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextMuted}" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextFaint}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,5,0,0" />
+    </Style>
+
+    <!-- =====================================================================
+         Champs de saisie — pas de bordure : la surface plus claire que le fond
+         suffit a se signaler comme un champ. Coins bien arrondis, generosite
+         de padding, aucune arete vive nulle part.
+         ===================================================================== -->
+    <Style Selector="ComboBox">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="Background" Value="{DynamicResource ZiaSurfaceHigh}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="Background" Value="{DynamicResource ZiaSurfaceHigh}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Slider">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaAccent}" />
+    </Style>
+    <Style Selector="CheckBox.setting">
+      <Setter Property="Padding" Value="8,0,0,0" />
+    </Style>
+
+    <!-- =====================================================================
+         Cartes — aucune bordure : le fond legerement plus clair que la page
+         suffit a detacher la carte, sans le trait qui « cadre » et durcit.
+         ===================================================================== -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource ZiaSurface}" />
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+
+    <Style Selector="TextBlock.statValue">
+      <Setter Property="FontFamily" Value="{DynamicResource ZiaMonoFontFamily}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="Foreground" Value="{DynamicResource ZiaText}" />
+    </Style>
+
+    <!-- =====================================================================
+         Badges de statut — pilule pleine, aucune ambiguite sur l'etat d'une
+         conversion au premier coup d'œil dans une liste de vingt lignes.
+         ===================================================================== -->
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="TextBlock.badgeText">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <Style Selector="Border.badge.queued">
+      <Setter Property="Background" Value="#1AECDCB8" />
+    </Style>
+    <Style Selector="Border.badge.queued TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextMuted}" />
+    </Style>
+
+    <Style Selector="Border.badge.running">
+      <Setter Property="Background" Value="#26E0A030" />
+    </Style>
+    <Style Selector="Border.badge.running TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaAccent}" />
+    </Style>
+
+    <Style Selector="Border.badge.succeeded">
+      <Setter Property="Background" Value="#268FAE72" />
+    </Style>
+    <Style Selector="Border.badge.succeeded TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaSuccess}" />
+    </Style>
+
+    <Style Selector="Border.badge.failed">
+      <Setter Property="Background" Value="#26C0574A" />
+    </Style>
+    <Style Selector="Border.badge.failed TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaError}" />
+    </Style>
+
+    <Style Selector="Border.badge.cancelled">
+      <Setter Property="Background" Value="#1A8A7A5C" />
+    </Style>
+    <Style Selector="Border.badge.cancelled TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextFaint}" />
+    </Style>
+
+    <!-- Fichier ecarte du lot (deja au bon format, conversion sans objet) : neutre,
+         a ne pas confondre visuellement avec un echec. -->
+    <Style Selector="Border.badge.skipped">
+      <Setter Property="Background" Value="#1A8A7A5C" />
+    </Style>
+    <Style Selector="Border.badge.skipped TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaTextFaint}" />
+    </Style>
+  </Application.Styles>
+
+  <Application.Resources>
+    <!-- =========================================================================
+         Palette chaleureuse et douce : fond brun tres sombre (jamais un noir pur
+         froid), accent ambre unique, aucune arete vive. Les cartes se detachent
+         par le contraste de fond, pas par des bordures — c'est ce qui donne le
+         cote « clean » plutot que « boite dans une boite ».
+         ========================================================================= -->
+
+    <!-- FluentTheme pilote en interne (curseur du Slider, coche des CheckBox, survol
+         des ComboBox...) via SystemAccentColor et ses variantes, independamment des
+         pinceaux ZiaAccent ci-dessous. Sans cette redefinition, ces controles restent
+         au violet par defaut du theme quel que soit ce qu'on met dans ZiaAccent. -->
+    <Color x:Key="SystemAccentColor">#E0A030</Color>
+    <Color x:Key="SystemAccentColorLight1">#EDB550</Color>
+    <Color x:Key="SystemAccentColorLight2">#F5C978</Color>
+    <Color x:Key="SystemAccentColorLight3">#FADDA3</Color>
+    <Color x:Key="SystemAccentColorDark1">#C08A28</Color>
+    <Color x:Key="SystemAccentColorDark2">#9C6F1F</Color>
+    <Color x:Key="SystemAccentColorDark3">#785516</Color>
+
+    <!-- Le controle Expander de FluentTheme dessine ses filets (en-tete, contenu deplie
+         sur ses 4 cotes) via ces ressources d'epaisseur, independamment de la propriete
+         BorderThickness qu'on poserait sur le controle lui-meme. Sans cette redefinition,
+         chaque section apparait comme une capsule bordee separee des autres, ce que
+         donnait l'interface precedente : moche et « cubique ». On les met toutes a zero
+         pour que les sections s'enchainent en une seule liste continue. -->
+    <Thickness x:Key="ExpanderHeaderBorderThickness">0</Thickness>
+    <Thickness x:Key="ExpanderContentDownBorderThickness">0</Thickness>
+    <Thickness x:Key="ExpanderContentUpBorderThickness">0</Thickness>
+    <Thickness x:Key="ExpanderContentLeftBorderThickness">0</Thickness>
+    <Thickness x:Key="ExpanderContentRightBorderThickness">0</Thickness>
+    <Thickness x:Key="ExpanderChevronBorderThickness">0</Thickness>
+
+    <SolidColorBrush x:Key="ZiaBackground">#15120E</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaSurface">#1E1914</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaSurfaceHigh">#28211A</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaSurfaceHigher">#332A21</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaBorder">#33291D</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaText">#F0E4CE</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaTextMuted">#A08F70</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaTextFaint">#6B5D46</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaAccent">#E0A030</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaAccentHover">#EDB550</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaSuccess">#8FAE72</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaError">#C0574A</SolidColorBrush>
+    <SolidColorBrush x:Key="ZiaWarning">#D0973F</SolidColorBrush>
+
+    <LinearGradientBrush x:Key="ZiaBackgroundGradient" StartPoint="0%,0%" EndPoint="100%,100%">
+      <GradientStop Color="#120F0B" Offset="0" />
+      <GradientStop Color="#18130E" Offset="0.5" />
+      <GradientStop Color="#15120E" Offset="1" />
+    </LinearGradientBrush>
+
+    <FontFamily x:Key="ZiaMonoFontFamily">Cascadia Mono,Consolas,monospace</FontFamily>
+  </Application.Resources>
+
+</Application>

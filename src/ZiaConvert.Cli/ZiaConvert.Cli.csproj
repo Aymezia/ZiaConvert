@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- « ziaconvert » entrerait en collision avec ZiaConvert.exe de l'interface :
+         Windows ne distingue pas la casse des noms de fichiers. -->
+    <AssemblyName>zia</AssemblyName>
+    <RootNamespace>ZiaConvert.Cli</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ZiaConvert.Core\ZiaConvert.Core.csproj" />
+    <ProjectReference Include="..\ZiaConvert.Engines\ZiaConvert.Engines.csproj" />
+  </ItemGroup>
+
+</Project>

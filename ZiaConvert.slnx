@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ZiaConvert.Core/ZiaConvert.Core.csproj" />
+    <Project Path="src/ZiaConvert.Engines/ZiaConvert.Engines.csproj" />
+    <Project Path="src/ZiaConvert.App/ZiaConvert.App.csproj" />
+    <Project Path="src/ZiaConvert.Cli/ZiaConvert.Cli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ZiaConvert.Core.Tests/ZiaConvert.Core.Tests.csproj" />
+    <Project Path="tests/ZiaConvert.Engines.Tests/ZiaConvert.Engines.Tests.csproj" />
+  </Folder>
+</Solution>

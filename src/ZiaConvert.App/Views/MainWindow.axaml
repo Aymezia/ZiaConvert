@@ -1,0 +1,478 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ZiaConvert.App.ViewModels"
+        xmlns:model="using:ZiaConvert.Core.Model"
+        x:Class="ZiaConvert.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="ZiaConvert"
+        Width="1220" Height="800"
+        MinWidth="1020" MinHeight="620"
+        DragDrop.AllowDrop="True"
+        Background="{DynamicResource ZiaBackgroundGradient}">
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ============================ En-tete ============================ -->
+    <Border Grid.Row="0" Padding="20,14" Background="{DynamicResource ZiaSurface}"
+            BorderBrush="{DynamicResource ZiaBorder}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Border Width="30" Height="30" CornerRadius="9" Background="{DynamicResource ZiaAccent}">
+            <TextBlock Text="Z" Foreground="{DynamicResource ZiaBackground}"
+                       FontWeight="Bold" FontSize="16"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <TextBlock Text="ZiaConvert" Classes="h1" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Le materiel detecte s'affiche des le demarrage : c'est la premiere question
+             que se pose quelqu'un dont la conversion traine. -->
+        <Border Grid.Column="2" Background="{DynamicResource ZiaSurfaceHigh}" CornerRadius="999"
+                Padding="12,7" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                     Fill="{DynamicResource ZiaAccent}" IsVisible="{Binding HasHardware}" />
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
+                     Fill="{DynamicResource ZiaTextFaint}" IsVisible="{Binding !HasHardware}" />
+            <TextBlock Text="{Binding HardwareStatus}" Classes="muted" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- ======================= Corps : reglages | fichiers ======================= -->
+    <Grid Grid.Row="1" ColumnDefinitions="360,1,*">
+
+      <!-- ============================= Panneau de reglages ============================= -->
+      <ScrollViewer Grid.Column="0" Padding="16,10">
+        <StackPanel Spacing="0">
+
+          <!-- Sortie -->
+          <StackPanel Spacing="10" Margin="4,6,4,16">
+            <StackPanel Spacing="5">
+              <TextBlock Text="CONVERTIR VERS" Classes="label" />
+              <ComboBox ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget}"
+                        HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="model:MediaFormat">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+
+            <StackPanel Spacing="5">
+              <TextBlock Text="PREREGLAGE" Classes="label" />
+              <ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}"
+                        HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConversionPreset">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+            <TextBlock Text="{Binding SelectedPreset.Description}" Classes="hint" />
+
+            <CheckBox Content="Ecraser les fichiers existants" IsChecked="{Binding Overwrite}"
+                      Classes="setting" Foreground="{DynamicResource ZiaTextMuted}" FontSize="12" />
+          </StackPanel>
+
+          <Rectangle Height="1" Fill="{DynamicResource ZiaBorder}" Margin="4,0,4,6" />
+
+          <!-- ============ VIDEO ============ -->
+          <Expander Classes="section" IsExpanded="True" IsVisible="{Binding IsVideoTarget}">
+            <Expander.Header>
+              <TextBlock Text="Video" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="14">
+              <StackPanel Spacing="5">
+                <TextBlock Text="CODEC" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding Codecs}" SelectedItem="{Binding Codec}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CodecChoice">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Label}" />
+                        <TextBlock Text="{Binding Hint}" Classes="muted" FontSize="10.5" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+
+              <StackPanel Spacing="5">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="QUALITE" Classes="fieldLabel" />
+                  <TextBlock Grid.Column="1" Text="{Binding Quality, StringFormat={}{0:0}}"
+                             Classes="fieldLabel mono" Foreground="{DynamicResource ZiaAccent}" />
+                </Grid>
+                <Slider Minimum="14" Maximum="36" Value="{Binding Quality}" TickFrequency="1" />
+                <TextBlock Text="{Binding QualityDescription}" Classes="hint" />
+              </StackPanel>
+
+              <StackPanel Spacing="5">
+                <TextBlock Text="ACCELERATION MATERIELLE" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding HardwareModes}" SelectedItem="{Binding Hardware}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:HardwareChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+
+              <CheckBox Content="Copier sans reencoder quand c'est possible"
+                        IsChecked="{Binding AllowRemux}" Classes="setting"
+                        Foreground="{DynamicResource ZiaTextMuted}" FontSize="12" />
+              <CheckBox Content="Conserver les sous-titres" IsChecked="{Binding KeepSubtitles}"
+                        Classes="setting" Foreground="{DynamicResource ZiaTextMuted}" FontSize="12" />
+            </StackPanel>
+          </Expander>
+
+          <!-- ============ RESOLUTION ============ -->
+          <Expander Classes="section" IsVisible="{Binding IsVideoTarget}">
+            <Expander.Header>
+              <TextBlock Text="Resolution" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="14">
+              <StackPanel Spacing="5">
+                <TextBlock Text="TAILLE" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ResolutionChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{Binding Resolution.Hint}" Classes="hint"
+                           IsVisible="{Binding Resolution.Hint, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+
+              <Grid ColumnDefinitions="*,10,*" IsVisible="{Binding IsCustomResolution}">
+                <StackPanel Grid.Column="0" Spacing="5">
+                  <TextBlock Text="LARGEUR" Classes="fieldLabel" />
+                  <TextBox Text="{Binding CustomWidth}" Watermark="1920" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="5">
+                  <TextBlock Text="HAUTEUR" Classes="fieldLabel" />
+                  <TextBox Text="{Binding CustomHeight}" Watermark="1080" />
+                </StackPanel>
+              </Grid>
+
+              <StackPanel Spacing="5">
+                <TextBlock Text="METHODE DE REDIMENSIONNEMENT" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding ScalingModes}" SelectedItem="{Binding Scaling}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ScalingChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+
+          <!-- ============ CADENCE ============ -->
+          <Expander Classes="section" IsVisible="{Binding IsVideoTarget}">
+            <Expander.Header>
+              <TextBlock Text="Cadence (images / seconde)" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="14">
+              <StackPanel Spacing="5">
+                <TextBlock Text="CADENCE DE SORTIE" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding FrameRates}" SelectedItem="{Binding FrameRate}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FrameRateChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+
+              <StackPanel Spacing="5" IsVisible="{Binding IsCustomFrameRate}">
+                <TextBlock Text="IMAGES PAR SECONDE" Classes="fieldLabel" />
+                <TextBox Text="{Binding CustomFrameRate}" Watermark="ex. 48, 90, 100" />
+              </StackPanel>
+
+              <!-- La methode n'a de sens que si une cadence differente est demandee :
+                   dupliquer ou interpoler une video qu'on ne touche pas ne veut rien dire. -->
+              <StackPanel Spacing="5" IsVisible="{Binding ChangesFrameRate}">
+                <TextBlock Text="METHODE" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding FrameRateModes}" SelectedItem="{Binding FrameRateStrategy}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FrameRateModeChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Text="{Binding FrameRateStrategy.Hint}" Classes="hint" />
+
+                <Border Background="#26E0A030" CornerRadius="10" Padding="12,10" Margin="0,4,0,0"
+                        IsVisible="{Binding IsInterpolating}">
+                  <TextBlock Classes="hint" Foreground="{DynamicResource ZiaWarning}"
+                             Text="Beaucoup plus lent : chaque image supplementaire est calculee par analyse du mouvement, pas simplement recopiee." />
+                </Border>
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+
+          <!-- ============ AUDIO ============ -->
+          <Expander Classes="section" IsVisible="{Binding !IsGifTarget}">
+            <Expander.Header>
+              <TextBlock Text="Audio" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="14">
+              <CheckBox Content="Retirer la piste audio" IsChecked="{Binding RemoveAudio}"
+                        Classes="setting" Foreground="{DynamicResource ZiaTextMuted}" FontSize="12"
+                        IsVisible="{Binding IsVideoTarget}" />
+
+              <StackPanel Spacing="14" IsEnabled="{Binding !RemoveAudio}">
+                <StackPanel Spacing="5">
+                  <TextBlock Text="CODEC" Classes="fieldLabel" />
+                  <ComboBox ItemsSource="{Binding AudioCodecs}" SelectedItem="{Binding AudioCodec}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:AudioCodecChoice">
+                        <TextBlock Text="{Binding Label}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+
+                <StackPanel Spacing="5">
+                  <TextBlock Text="DEBIT" Classes="fieldLabel" />
+                  <ComboBox ItemsSource="{Binding AudioBitrates}" SelectedItem="{Binding AudioBitrate}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:AudioBitrateChoice">
+                        <TextBlock Text="{Binding Label}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+
+                <StackPanel Spacing="5" IsVisible="{Binding IsAudioTarget}">
+                  <TextBlock Text="CANAUX" Classes="fieldLabel" />
+                  <ComboBox ItemsSource="{Binding ChannelModes}" SelectedItem="{Binding AudioChannels}"
+                            HorizontalAlignment="Stretch">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ChannelChoice">
+                        <TextBlock Text="{Binding Label}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+
+                <CheckBox Content="Normaliser le volume (EBU R128)" IsChecked="{Binding NormalizeAudio}"
+                          Classes="setting" Foreground="{DynamicResource ZiaTextMuted}" FontSize="12"
+                          IsVisible="{Binding IsAudioTarget}" />
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+
+          <!-- ============ DECOUPE ============ -->
+          <Expander Classes="section">
+            <Expander.Header>
+              <TextBlock Text="Decoupe" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="*,10,*">
+                <StackPanel Grid.Column="0" Spacing="5">
+                  <TextBlock Text="DEBUT" Classes="fieldLabel" />
+                  <TextBox Text="{Binding TrimStart}" Watermark="0:00" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="5">
+                  <TextBlock Text="FIN" Classes="fieldLabel" />
+                  <TextBox Text="{Binding TrimEnd}" Watermark="fin du fichier" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Classes="hint" Text="Laisser vide pour garder le fichier en entier. Formats acceptes : 90 (secondes) ou 1:30." />
+            </StackPanel>
+          </Expander>
+
+          <!-- ============ GIF ============ -->
+          <Expander Classes="section" IsExpanded="True" IsVisible="{Binding IsGifTarget}">
+            <Expander.Header>
+              <TextBlock Text="GIF anime" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="14">
+              <Grid ColumnDefinitions="*,10,*">
+                <StackPanel Grid.Column="0" Spacing="5">
+                  <TextBlock Text="IMAGES / SECONDE" Classes="fieldLabel" />
+                  <TextBox Text="{Binding GifFrameRate}" Watermark="15" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Spacing="5">
+                  <TextBlock Text="LARGEUR" Classes="fieldLabel" />
+                  <TextBox Text="{Binding GifWidth}" Watermark="480" />
+                </StackPanel>
+              </Grid>
+
+              <StackPanel Spacing="5">
+                <TextBlock Text="TRAME DE COULEURS" Classes="fieldLabel" />
+                <ComboBox ItemsSource="{Binding DitherModes}" SelectedItem="{Binding GifDither}"
+                          HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DitherChoice">
+                      <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+            </StackPanel>
+          </Expander>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <Rectangle Grid.Column="1" Fill="{DynamicResource ZiaBorder}" />
+
+      <!-- ============================= Fichiers ============================= -->
+      <Grid Grid.Column="2" RowDefinitions="Auto,Auto,*,Auto">
+
+        <Border Grid.Row="0" Padding="20,12" BorderBrush="{DynamicResource ZiaBorder}"
+                BorderThickness="0,0,0,1">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="Fichiers" Classes="h1" FontSize="15"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Ajouter des fichiers..." Classes="ghost"
+                    Click="OnBrowseClick" />
+          </Grid>
+        </Border>
+
+        <!-- Etat du lot en un coup d'œil : une seule carte, des chiffres separes par
+             de simples traits fins plutot que quatre pavés bordes independants. -->
+        <Border Grid.Row="1" Classes="card" Margin="20,14,20,0" Padding="6,14"
+                IsVisible="{Binding HasFiles}">
+          <Grid ColumnDefinitions="*,Auto,*,Auto,*,Auto,*">
+            <StackPanel Grid.Column="0" Spacing="4" HorizontalAlignment="Center">
+              <TextBlock Text="FICHIERS" Classes="label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding TotalCount}" Classes="statValue" HorizontalAlignment="Center" />
+            </StackPanel>
+            <Rectangle Grid.Column="1" Width="1" Margin="0,4" Fill="{DynamicResource ZiaBorder}" />
+
+            <StackPanel Grid.Column="2" Spacing="4" HorizontalAlignment="Center">
+              <TextBlock Text="EN COURS" Classes="label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding RunningCount}" Classes="statValue" HorizontalAlignment="Center"
+                         Foreground="{DynamicResource ZiaAccent}" />
+            </StackPanel>
+            <Rectangle Grid.Column="3" Width="1" Margin="0,4" Fill="{DynamicResource ZiaBorder}" />
+
+            <StackPanel Grid.Column="4" Spacing="4" HorizontalAlignment="Center">
+              <TextBlock Text="TERMINES" Classes="label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding SucceededCount}" Classes="statValue" HorizontalAlignment="Center"
+                         Foreground="{DynamicResource ZiaSuccess}" />
+            </StackPanel>
+            <Rectangle Grid.Column="5" Width="1" Margin="0,4" Fill="{DynamicResource ZiaBorder}" />
+
+            <StackPanel Grid.Column="6" Spacing="4" HorizontalAlignment="Center">
+              <TextBlock Text="ECHECS" Classes="label" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding FailedCount}" Classes="statValue" HorizontalAlignment="Center"
+                         Foreground="{DynamicResource ZiaError}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+          <Border Margin="24" CornerRadius="16"
+                  Background="{DynamicResource ZiaSurface}"
+                  IsVisible="{Binding !HasFiles}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+              <TextBlock Text="Glissez vos fichiers ici" FontSize="18"
+                         Foreground="{DynamicResource ZiaText}" HorizontalAlignment="Center" />
+              <TextBlock Text="video ou audio — ou utilisez le bouton ci-dessus"
+                         Classes="muted" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
+          <ScrollViewer IsVisible="{Binding HasFiles}" Padding="20,14">
+            <ItemsControl ItemsSource="{Binding Files}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FileEntryViewModel">
+                  <Border Classes="card" Margin="0,0,0,10" Padding="16,14">
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+
+                      <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{Binding FileName}"
+                                   Foreground="{DynamicResource ZiaText}" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SizeText}" Classes="muted mono" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SourceLabel}" Classes="muted mono" VerticalAlignment="Center" />
+                        <TextBlock Text="→" Classes="muted" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding TargetLabel}" Classes="mono" FontSize="12"
+                                   Foreground="{DynamicResource ZiaAccent}" VerticalAlignment="Center" />
+                      </StackPanel>
+
+                      <Button Grid.Row="0" Grid.Column="1" Content="✕" Classes="rowAction"
+                              Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}"
+                              ToolTip.Tip="Annuler cette conversion" />
+
+                      <ProgressBar Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                   Height="5" Margin="0,11,0,0" Maximum="100" CornerRadius="3"
+                                   Foreground="{DynamicResource ZiaAccent}"
+                                   Background="{DynamicResource ZiaSurfaceHigh}"
+                                   Value="{Binding Progress}"
+                                   IsIndeterminate="{Binding IsIndeterminate}"
+                                   IsVisible="{Binding IsRunning}" />
+
+                      <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                  Orientation="Horizontal" Spacing="10" Margin="0,10,0,0">
+                        <Border Classes="badge"
+                                Classes.queued="{Binding IsQueued}"
+                                Classes.running="{Binding IsRunning}"
+                                Classes.succeeded="{Binding IsSucceeded}"
+                                Classes.failed="{Binding HasFailed}"
+                                Classes.cancelled="{Binding IsCancelled}"
+                                Classes.skipped="{Binding IsSkipped}">
+                          <TextBlock Text="{Binding BadgeWord}" Classes="badgeText" />
+                        </Border>
+                        <TextBlock Text="{Binding Status}" Classes="muted mono" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Detail}" Classes="muted" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+
+        <!-- Pied -->
+        <Border Grid.Row="3" Padding="20,14" Background="{DynamicResource ZiaSurface}"
+                BorderBrush="{DynamicResource ZiaBorder}" BorderThickness="0,1,0,0">
+          <Grid RowDefinitions="Auto,Auto">
+            <ProgressBar Grid.Row="0" Height="5" Maximum="100" Margin="0,0,0,14" CornerRadius="3"
+                         Foreground="{DynamicResource ZiaAccent}" Background="{DynamicResource ZiaSurfaceHigh}"
+                         Value="{Binding OverallProgress}" IsVisible="{Binding HasFiles}" />
+
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto,Auto">
+              <TextBlock Grid.Column="0" Text="{Binding Summary}" Classes="muted" VerticalAlignment="Center" />
+
+              <Button Grid.Column="1" Content="Vider" Classes="ghost" Margin="0,0,8,0"
+                      Command="{Binding ClearAllCommand}" IsVisible="{Binding HasFiles}" />
+
+              <Button Grid.Column="2" Content="Tout annuler" Classes="ghost" Margin="0,0,8,0"
+                      Command="{Binding CancelAllCommand}" IsVisible="{Binding HasFiles}" />
+
+              <Button Grid.Column="3" Content="Convertir" Classes="accent"
+                      Command="{Binding ConvertCommand}" IsEnabled="{Binding HasFiles}" />
+            </Grid>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+
+</Window>
