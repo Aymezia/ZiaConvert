@@ -4,7 +4,7 @@ Convertisseur video, audio et image, avec interface graphique et ligne de comman
 
 ## Telecharger
 
-La derniere version compilee (Windows 64 bits, rien a installer) est disponible dans les [releases](https://github.com/Aymezia/ZiaConvert/releases). Dezipper et lancer `ZiaConvert.exe`.
+La derniere version est disponible dans les [releases](https://github.com/Aymezia/ZiaConvert/releases) : `ZiaConvert-Setup-x.y.z.exe`, un installateur classique (raccourcis, desinstalleur, ajout optionnel de `zia` au PATH). L'application verifie elle-meme au demarrage si une version plus recente existe et propose de l'installer en un clic.
 
 ## Fonctionnalites
 
@@ -22,6 +22,7 @@ La derniere version compilee (Windows 64 bits, rien a installer) est disponible 
 - **Developpement RAW** (CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF, PEF, SRW) via libraw, avec balance des blancs, orientation automatique et conversion d'espace colorimetrique.
 - **Images classiques** (jpeg, png, webp, avif, heic, tiff, bmp) avec redimensionnement, choix qualite/sans-perte selon le format, et suppression optionnelle des metadonnees EXIF.
 - **Agrandissement par IA** (Real-ESRGAN) qui reconstruit du detail plutot que d'etirer les pixels — a ne pas confondre avec un redimensionnement, qui reste instantane mais n'ajoute rien. Une estimation de duree, calibree sur la machine par une mesure reelle plutot que devinee, s'affiche avant de lancer.
+- **Mise a jour automatique** : l'application interroge la derniere release GitHub au demarrage et, si une version plus recente existe, propose de la telecharger et de l'installer en un clic (silencieux, l'application se ferme et se relance d'elle-meme).
 
 ## Formats
 
@@ -54,6 +55,14 @@ dotnet publish src/ZiaConvert.Cli -c Release -r win-x64 --self-contained true \
 ```
 
 Copier `ffmpeg.exe` et `ffprobe.exe` dans `dist/tools/ffmpeg/` pour obtenir un dossier autonome.
+
+### Construire l'installateur
+
+Necessite [Inno Setup 6](https://jrsoftware.org/isinfo.php). `installer/build.ps1` publie l'App et la CLI, signe les executables (si un certificat `.pfx` est present dans `signing/`, jamais versionne), puis compile et signe `installer/output/ZiaConvert-Setup-x.y.z.exe`. Sans certificat, le build reste possible : tout ressort simplement non signe.
+
+```powershell
+.\installer\build.ps1
+```
 
 ## Ligne de commande
 

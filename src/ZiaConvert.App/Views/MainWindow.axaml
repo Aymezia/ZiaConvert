@@ -10,7 +10,7 @@
         DragDrop.AllowDrop="True"
         Background="{DynamicResource ZiaBackgroundGradient}">
 
-  <Grid RowDefinitions="Auto,*">
+  <Grid RowDefinitions="Auto,Auto,*">
 
     <!-- ============================ En-tete ============================ -->
     <Border Grid.Row="0" Padding="20,14" Background="{DynamicResource ZiaSurface}"
@@ -40,8 +40,26 @@
       </Grid>
     </Border>
 
+    <!-- ==================== Bandeau de mise a jour ==================== -->
+    <Border Grid.Row="1" Padding="20,10" Background="{DynamicResource ZiaSurfaceHigh}"
+            BorderBrush="{DynamicResource ZiaBorder}" BorderThickness="0,0,0,1"
+            IsVisible="{Binding UpdateAvailable}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{DynamicResource ZiaAccent}" />
+          <TextBlock Text="{Binding UpdateBannerText}" Classes="muted" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <ProgressBar Width="140" Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
+                       IsVisible="{Binding IsUpdating}" />
+          <Button Content="Mettre a jour" Classes="accent" FontSize="12" Padding="12,6"
+                  Command="{Binding InstallUpdateCommand}" IsVisible="{Binding !IsUpdating}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- ======================= Corps : reglages | fichiers ======================= -->
-    <Grid Grid.Row="1" ColumnDefinitions="360,1,*">
+    <Grid Grid.Row="2" ColumnDefinitions="360,1,*">
 
       <!-- ============================= Panneau de reglages ============================= -->
       <ScrollViewer Grid.Column="0" Padding="16,10">

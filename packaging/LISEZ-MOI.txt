@@ -1,4 +1,4 @@
-ZiaConvert 0.2.0 — convertisseur universel
+ZiaConvert 0.3.0 — convertisseur universel
 ==========================================
 
 CONTENU

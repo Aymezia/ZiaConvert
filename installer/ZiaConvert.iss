@@ -7,7 +7,7 @@
 ; garder le script libre de tout chemin ou secret propre a une machine.
 
 #define MyAppName "ZiaConvert"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.3.0"
 #define MyAppPublisher "ZiaConvert"
 #define MyAppExeName "ZiaConvert.exe"
 #define MyCliExeName "zia.exe"
@@ -36,6 +36,12 @@ DisableWelcomePage=no
 ; sans jamais invoquer l'outil, meme quand /S le definit.
 SignTool=signtool
 SignedUninstaller=yes
+; Filet de securite pour la mise a jour silencieuse declenchee depuis l'application
+; (voir AppUpdater.cs) : si ZiaConvert.exe n'a pas fini de se fermer par lui-meme au
+; moment ou Setup doit remplacer ses fichiers, le Gestionnaire de redemarrage de
+; Windows le ferme puis le relance a la fin de l'installation.
+CloseApplications=yes
+RestartApplications=yes
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"

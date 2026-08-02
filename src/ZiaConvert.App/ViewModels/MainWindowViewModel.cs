@@ -1,11 +1,14 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ZiaConvert.Core.Jobs;
 using ZiaConvert.Core.Model;
 using ZiaConvert.Core.Options;
+using ZiaConvert.Core.Updates;
 using ZiaConvert.Engines;
 
 namespace ZiaConvert.App.ViewModels;
@@ -137,6 +140,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private int _failedCount;
 
+    // -------------------------------------------------------- Mise a jour
+    [ObservableProperty]
+    private bool _updateAvailable;
+
+    [ObservableProperty]
+    private string? _updateVersion;
+
+    [ObservableProperty]
+    private bool _isUpdating;
+
+    [ObservableProperty]
+    private double _updateProgress;
+
+    [ObservableProperty]
+    private string? _updateError;
+
+    private string? _updateInstallerUrl;
+
     public MainWindowViewModel()
     {
         _queue = _services.CreateQueue();
@@ -154,7 +175,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         ApplyPreset(SelectedPreset);
         _ = DetectHardwareAsync();
+        _ = CheckForUpdatesAsync();
     }
+
+    /// <summary>Phrase affichee dans le bandeau : l'erreur prend le pas si le telechargement a echoue.</summary>
+    public string UpdateBannerText => UpdateError ?? $"Nouvelle version {UpdateVersion} disponible.";
+
+    partial void OnUpdateVersionChanged(string? value) => OnPropertyChanged(nameof(UpdateBannerText));
+
+    partial void OnUpdateErrorChanged(string? value) => OnPropertyChanged(nameof(UpdateBannerText));
 
     public ObservableCollection<FileEntryViewModel> Files { get; } = [];
 
@@ -665,6 +694,69 @@ public sealed partial class MainWindowViewModel : ObservableObject
             HasHardware = false;
         }
 #pragma warning restore CA1031
+    }
+
+    /// <summary>
+    /// Verifie la derniere release GitHub au demarrage. <see cref="UpdateChecker" />
+    /// avale deja ses propres echecs reseau ; ce filet supplementaire couvre le reste
+    /// (construction du client HTTP, etc.) — une verification en echec ne doit jamais
+    /// gener l'ouverture de l'application.
+    /// </summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var checker = new UpdateChecker();
+            var current = typeof(MainWindowViewModel).Assembly.GetName().Version ?? new Version(0, 0, 0);
+            var update = await checker.CheckAsync(current).ConfigureAwait(true);
+
+            if (update is null)
+            {
+                return;
+            }
+
+            UpdateVersion = update.Version;
+            _updateInstallerUrl = update.InstallerUrl;
+            UpdateAvailable = true;
+        }
+#pragma warning disable CA1031
+        catch (Exception)
+        {
+            // Rien a faire : on retentera au prochain lancement.
+        }
+#pragma warning restore CA1031
+    }
+
+    [RelayCommand]
+    private async Task InstallUpdateAsync()
+    {
+        if (_updateInstallerUrl is null || IsUpdating)
+        {
+            return;
+        }
+
+        IsUpdating = true;
+        UpdateProgress = 0;
+        UpdateError = null;
+
+        try
+        {
+            var progress = new Progress<double>(p => UpdateProgress = p);
+            await AppUpdater.DownloadAndRunAsync(_updateInstallerUrl, progress).ConfigureAwait(true);
+
+            // L'installateur va remplacer les fichiers de l'application : mieux vaut
+            // fermer proprement maintenant que laisser le Gestionnaire de redemarrage
+            // de Windows le faire de force.
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                desktop.Shutdown();
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        {
+            IsUpdating = false;
+            UpdateError = "Le telechargement a echoue. Reessayez plus tard, ou telechargez la mise a jour depuis GitHub.";
+        }
     }
 
     private void OnJobChanged(object? sender, ConversionJob job)
