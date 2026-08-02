@@ -1,0 +1,93 @@
+ZiaConvert 0.2.0 — convertisseur universel
+==========================================
+
+CONTENU
+
+  ZiaConvert.exe        Application graphique (glisser-deposer)
+  zia.exe                Ligne de commande
+  tools/ffmpeg/          Moteur video et audio, livre avec l'application
+  LICENSE.txt            GPL v3
+
+Rien d'autre a installer pour la video et l'audio : les deux executables
+embarquent le runtime .NET, et ffmpeg est fourni dans tools/. Le dossier est
+deplacable tel quel, a condition de garder tools/ a cote des executables.
+
+Le developpement RAW/image et l'agrandissement par IA (Real-ESRGAN) ont
+besoin respectivement d'ImageMagick (`magick`) et de realesrgan-ncnn-vulkan
+installes separement pour l'instant — l'application le detecte et l'indique
+clairement si l'un des deux manque, sans planter. Details dans
+THIRD-PARTY-NOTICES.md.
+
+
+DEMARRAGE
+
+  Double-cliquez ZiaConvert.exe, puis glissez vos fichiers dans la fenetre.
+
+  Le premier lancement prend quelques secondes de plus : l'executable se
+  decompresse une fois pour toutes.
+
+
+LIGNE DE COMMANDE
+
+  zia film.mp4 -o film.mkv
+      Change de conteneur sans reencoder. Quelques secondes, aucune perte.
+
+  zia film.mkv -o film.mp4 --codec h264 -q 20
+      Reencode, avec acceleration materielle si la machine en dispose.
+
+  zia clip.mp4 -o clip.gif --fps 15 -w 480 -ss 5 -to 10
+      Extrait de 5 a 10 secondes, converti en GIF.
+
+  zia concert.mp4 -o concert.mp3 -b 192k
+      Extrait la bande son.
+
+  zia rip_dvd.vob -o film.mkv --remux-only
+      Re-emballe un rip DVD sans reencoder ; echoue clairement si les codecs
+      source ne rentrent pas dans mkv plutot que de reencoder en silence.
+
+  zia rip_dvd.mkv -o film.mkv --audio-track 2 --subtitle-track 4
+      Garde une piste audio et une piste de sous-titres precises (indices
+      vus par "zia probe") sur un rip multipiste.
+
+  zia film.mkv -o film.mkv --add-subtitle vostfr.srt --subtitle-lang fre
+      Integre un sous-titre externe a une sortie mkv, sans reencoder.
+
+  zia photo.cr2 -o photo.jpg
+      Developpement RAW (necessite ImageMagick installe separement).
+
+  zia vieille-photo.jpg -o hd.jpg --upscale --factor 4
+      Agrandissement par IA (necessite Real-ESRGAN installe separement).
+
+  zia engines
+      Moteurs disponibles et encodeurs materiels reellement utilisables.
+
+  zia --help
+      Toutes les options.
+
+
+CE QU'IL FAUT SAVOIR
+
+  Copie de flux. Convertir un MP4 en MKV ne demande souvent aucun
+  reencodage : l'application le detecte et se contente de reecrire
+  l'enveloppe. Deux secondes au lieu de dix minutes, sans perte de qualite.
+  Quand ce n'est pas possible, l'application affiche pourquoi.
+
+  Agrandissement par redimensionnement. Passer une video de 1080p a 4K par
+  simple redimensionnement etire les pixels : cela n'ajoute aucun detail.
+  L'agrandissement par IA (Real-ESRGAN, images uniquement) reconstruit
+  reellement du detail, mais prend plusieurs secondes par image.
+
+  Acceleration materielle. Elle est detectee au demarrage en lancant un
+  vrai encodage de test, et non en se fiant a ce que ffmpeg declare savoir
+  faire. Sans materiel compatible, tout fonctionne quand meme, en plus lent.
+
+  Verification post-conversion. La duree de chaque sortie est recomparee a
+  celle de la source ; un ecart anormal est signale sans jamais transformer
+  une conversion reussie en echec.
+
+
+LICENCE
+
+  GPL v3 — voir LICENSE.txt.
+  ZiaConvert est livre avec FFmpeg (GPL v3), ce qui impose cette licence a
+  l'ensemble. Details dans THIRD-PARTY-NOTICES.md.

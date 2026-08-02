@@ -7,7 +7,7 @@
 ; garder le script libre de tout chemin ou secret propre a une machine.
 
 #define MyAppName "ZiaConvert"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "ZiaConvert"
 #define MyAppExeName "ZiaConvert.exe"
 #define MyCliExeName "zia.exe"

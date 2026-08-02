@@ -27,6 +27,14 @@ if (-not $SkipPublish) {
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$root\dist"
 }
 
+# LICENSE.txt et THIRD-PARTY-NOTICES.md doivent toujours venir de la racine du depot,
+# jamais d'une copie manuelle dans dist/ : une copie oubliee finit par mentir (verifie
+# une fois : dist/THIRD-PARTY-NOTICES.md affirmait ImageMagick et Real-ESRGAN
+# embarques alors qu'ils ne le sont pas encore).
+Copy-Item "$root\LICENSE.txt" "$root\dist\LICENSE.txt" -Force
+Copy-Item "$root\THIRD-PARTY-NOTICES.md" "$root\dist\THIRD-PARTY-NOTICES.md" -Force
+Copy-Item "$root\packaging\LISEZ-MOI.txt" "$root\dist\LISEZ-MOI.txt" -Force
+
 $canSign = (Test-Path $pfx) -and (Test-Path $pfxPasswordFile) -and (Test-Path $signtool)
 
 if ($canSign) {
