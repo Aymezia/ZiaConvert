@@ -11,3 +11,8 @@ TestResults/
 # asset de release, jamais versionnee. ffmpeg.exe seul depasse la limite
 # GitHub de 100 Mo par fichier.
 dist/
+
+# Certificat de signature de code et sortie de l'installateur : jamais dans le depot,
+# meme auto-signe (cle privee + mot de passe en clair a cote).
+signing/
+installer/output/
