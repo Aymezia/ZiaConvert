@@ -15,6 +15,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly ConversionServices _services = ConversionServices.Create();
     private readonly Dictionary<Guid, FileEntryViewModel> _byJob = [];
     private readonly JobQueue _queue;
+    private readonly PresetStore _presetStore = new();
 
     // ---------------------------------------------------------------- Sortie
     [ObservableProperty]
@@ -90,6 +91,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _trimEnd = string.Empty;
 
+    // ---------------------------------------------------------- Sous-titres
+    /// <summary>
+    /// Sous-titres externes a integrer, appliques a tout le lot en cours (comme la
+    /// decoupe) : le cas courant est un seul film accompagne de ses .srt, pas un lot de
+    /// films portant chacun ses propres sous-titres.
+    /// </summary>
+    public ObservableCollection<SubtitleEntryViewModel> ExternalSubtitles { get; } = [];
+
     // ------------------------------------------------------------------- GIF
     [ObservableProperty]
     private string _gifFrameRate = "15";
@@ -133,6 +142,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _queue = _services.CreateQueue();
         _queue.JobChanged += OnJobChanged;
 
+        foreach (var preset in ConversionPreset.All)
+        {
+            Presets.Add(preset);
+        }
+
+        foreach (var preset in _presetStore.Load())
+        {
+            Presets.Add(preset);
+        }
+
         ApplyPreset(SelectedPreset);
         _ = DetectHardwareAsync();
     }
@@ -141,7 +160,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public ObservableCollection<MediaFormat> Targets { get; } = [];
 
-    public IReadOnlyList<ConversionPreset> Presets => ConversionPreset.All;
+    /// <summary>
+    /// Preglages fixes suivis des preglages personnalises, dans l'ordre ou ils ont ete
+    /// crees. Une collection observable, contrairement aux preglages fixes seuls : elle
+    /// peut grandir ou retrecir au fil des enregistrements et suppressions.
+    /// </summary>
+    public ObservableCollection<ConversionPreset> Presets { get; } = [];
 
     public IReadOnlyList<CodecChoice> Codecs => CodecChoice.All;
 
@@ -179,6 +203,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsAudioTarget => SelectedTarget?.Family == FormatFamily.Audio;
 
     public bool IsGifTarget => SelectedTarget?.Id == "gif";
+
+    public bool IsImageTarget => SelectedTarget?.Family == FormatFamily.Image && !IsGifTarget;
+
+    /// <summary>
+    /// Seul mkv accepte des sous-titres externes sans reencoder le reste (mp4 voudrait
+    /// mov_text, webm n'accepte pas le texte tel quel) : le panneau ne s'affiche que la.
+    /// </summary>
+    public bool IsMkvTarget => SelectedTarget?.Id == "mkv";
 
     /// <summary>Traduit la valeur de qualite en une phrase utile a qui ignore ce qu'est un CRF.</summary>
     public string QualityDescription => Quality switch
@@ -221,6 +253,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(HasFiles));
 
         return rejected;
+    }
+
+    /// <summary>Ajoute des fichiers de sous-titres externes, sans doublon.</summary>
+    public void AddSubtitleFiles(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            if (!File.Exists(path) ||
+                ExternalSubtitles.Any(s => string.Equals(s.FilePath, path, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            ExternalSubtitles.Add(new SubtitleEntryViewModel(path, entry => ExternalSubtitles.Remove(entry)));
+        }
     }
 
     public void Shutdown()
@@ -302,7 +349,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     // ------------------------------------------------------------ Reactions
 
-    partial void OnSelectedPresetChanged(ConversionPreset value) => ApplyPreset(value);
+    partial void OnSelectedPresetChanged(ConversionPreset value)
+    {
+        ApplyPreset(value);
+        OnPropertyChanged(nameof(CanDeleteSelectedPreset));
+        DeleteSelectedPresetCommand.NotifyCanExecuteChanged();
+    }
 
     partial void OnQualityChanged(double value) => OnPropertyChanged(nameof(QualityDescription));
 
@@ -323,6 +375,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(IsVideoTarget));
         OnPropertyChanged(nameof(IsAudioTarget));
         OnPropertyChanged(nameof(IsGifTarget));
+        OnPropertyChanged(nameof(IsImageTarget));
+        OnPropertyChanged(nameof(IsMkvTarget));
     }
 
     /// <summary>
@@ -340,6 +394,70 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         Resolution = ResolutionChoice.All.FirstOrDefault(r => r.Height == preset.Height)
             ?? ResolutionChoice.All[0];
+    }
+
+    /// <summary>
+    /// Vrai quand le preglage courant peut etre supprime : seuls ceux enregistres par
+    /// l'utilisateur le peuvent, pas les preglages fixes livres avec l'application.
+    /// </summary>
+    public bool CanDeleteSelectedPreset => !ConversionPreset.IsBuiltIn(SelectedPreset.Name);
+
+    /// <summary>
+    /// Enregistre les reglages actuels du panneau comme nouveau preglage.
+    /// </summary>
+    /// <remarks>
+    /// Appelee depuis le code-behind une fois le nom obtenu par une boite de dialogue :
+    /// demander un nom est une preoccupation de la vue, pas du ViewModel.
+    /// </remarks>
+    public void SaveCurrentAsPreset(string name)
+    {
+        var preset = new ConversionPreset
+        {
+            Name = name,
+            Description = "Preglage personnalise.",
+            Codec = Codec.Value,
+            Quality = (int)Math.Round(Quality),
+            Height = Resolution.Height,
+            Audio = AudioCodec.Value,
+            AudioBitrate = AudioBitrate.Value,
+            AllowRemux = AllowRemux,
+        };
+
+        // Remplace un preglage personnalise du meme nom plutot que d'en accumuler deux :
+        // enregistrer par-dessus est le geste naturel pour mettre a jour un reglage existant.
+        // Un nom qui coincide avec un preglage fixe n'ecrase jamais celui-ci (defini dans
+        // le code, pas dans le fichier utilisateur) : il s'ajoute simplement a cote.
+        var existingIndex = Presets
+            .Select((p, index) => (p, index))
+            .Where(pair => pair.p.Name == name && !ConversionPreset.IsBuiltIn(name))
+            .Select(pair => (int?)pair.index)
+            .FirstOrDefault();
+
+        if (existingIndex is { } index)
+        {
+            Presets[index] = preset;
+        }
+        else
+        {
+            Presets.Add(preset);
+        }
+
+        PersistCustomPresets();
+        SelectedPreset = preset;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteSelectedPreset))]
+    private void DeleteSelectedPreset()
+    {
+        Presets.Remove(SelectedPreset);
+        PersistCustomPresets();
+        SelectedPreset = Presets[0];
+    }
+
+    private void PersistCustomPresets()
+    {
+        var custom = Presets.Where(p => !ConversionPreset.IsBuiltIn(p.Name)).ToList();
+        _presetStore.Save(custom);
     }
 
     // -------------------------------------------------------------- Reglages
@@ -371,6 +489,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
             };
         }
 
+        if (target.Family == FormatFamily.Image)
+        {
+            // Le panneau de reglages ne propose pas encore de section Image dediee : les
+            // reglages video (CRF 14-36) n'ont pas le meme sens qu'une qualite JPEG/WebP
+            // sur 1-100, les reutiliser produirait des images sur-compressees par defaut.
+            // On s'appuie donc sur les valeurs par defaut d'ImageOptions, deja adaptees.
+            return new ImageOptions();
+        }
+
         var (width, height) = ResolveResolution();
 
         return new VideoOptions
@@ -390,8 +517,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
             RemoveAudio = RemoveAudio,
             StartTime = ParseTime(TrimStart),
             EndTime = ParseTime(TrimEnd),
+
+            // Seul mkv accepte ces pistes : un panneau reste rempli mais masque apres un
+            // changement de cible ne doit pas faire echouer une conversion vers un autre
+            // conteneur avec une erreur sortie de nulle part.
+            ExternalSubtitles = target.Id == "mkv" ? BuildSubtitleImports() : [],
         };
     }
+
+    private IReadOnlyList<SubtitleImport> BuildSubtitleImports() =>
+        ExternalSubtitles.Select(s => new SubtitleImport
+        {
+            FilePath = s.FilePath,
+            Language = string.IsNullOrWhiteSpace(s.Language) ? null : s.Language.Trim(),
+            Title = string.IsNullOrWhiteSpace(s.Title) ? null : s.Title.Trim(),
+        }).ToList();
 
     private (int? Width, int? Height) ResolveResolution()
     {
@@ -486,6 +626,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ?? Targets.FirstOrDefault(t => t.Id == "mkv")
             ?? Targets.FirstOrDefault(t => t.Id == "mp4")
             ?? Targets.FirstOrDefault(t => t.Family == FormatFamily.Video)
+            ?? Targets.FirstOrDefault(t => t.Id == "jpeg")
             ?? Targets.FirstOrDefault();
     }
 

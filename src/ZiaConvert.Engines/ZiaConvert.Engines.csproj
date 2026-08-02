@@ -8,4 +8,11 @@
     <InternalsVisibleTo Include="ZiaConvert.Engines.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Images de calibration du benchmark Real-ESRGAN : deux tailles fixes, embarquees
+         pour que la mesure de debit ne depende d'aucun outil externe (pas meme ImageMagick). -->
+    <EmbeddedResource Include="Upscale\Calibration\calibration-small.png" />
+    <EmbeddedResource Include="Upscale\Calibration\calibration-large.png" />
+  </ItemGroup>
+
 </Project>

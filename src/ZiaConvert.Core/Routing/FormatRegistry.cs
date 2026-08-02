@@ -109,6 +109,10 @@ public sealed class FormatRegistry
         Video("ogv", "Ogg Video", "video/ogg", ".ogv"),
         Video("3gp", "3GPP", "video/3gpp", ".3gp"),
 
+        // VOB : format natif des rips DVD (flux MPEG-PS). On ne fabrique jamais de VOB en
+        // sortie, seulement remuxe ou reencode depuis un fichier existant.
+        VideoSourceOnly("vob", "DVD Video Object", "video/mpeg", ".vob"),
+
         // --- Audio -------------------------------------------------------------------
         Audio("mp3", "MP3", "audio/mpeg", ".mp3"),
         Audio("aac", "AAC", "audio/aac", ".aac"),
@@ -170,6 +174,17 @@ public sealed class FormatRegistry
             Family = FormatFamily.Video,
             Extensions = extensions,
             MimeType = mime,
+        };
+
+    private static MediaFormat VideoSourceOnly(string id, string name, string mime, params string[] extensions) =>
+        new()
+        {
+            Id = id,
+            DisplayName = name,
+            Family = FormatFamily.Video,
+            Extensions = extensions,
+            MimeType = mime,
+            CanBeTarget = false,
         };
 
     private static MediaFormat Audio(string id, string name, string mime, params string[] extensions) =>

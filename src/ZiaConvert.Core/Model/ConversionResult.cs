@@ -21,19 +21,29 @@ public sealed record ConversionResult
     /// </summary>
     public string? Detail { get; init; }
 
+    /// <summary>
+    /// Signale une sortie suspecte malgre un moteur qui s'est termine sans erreur — par
+    /// exemple une duree tres inferieure a la source, indice d'un fichier tronque. La
+    /// conversion reste un succes (le fichier existe et le moteur n'a rien signale) :
+    /// c'est un avertissement a afficher, pas un echec a provoquer.
+    /// </summary>
+    public string? VerificationWarning { get; init; }
+
     public string? ErrorMessage { get; init; }
 
     public static ConversionResult Ok(
         string outputPath,
         string engineName,
         TimeSpan duration,
-        string? detail = null) => new()
+        string? detail = null,
+        string? verificationWarning = null) => new()
         {
             Success = true,
             OutputPath = outputPath,
             EngineName = engineName,
             Duration = duration,
             Detail = detail,
+            VerificationWarning = verificationWarning,
             OutputSizeBytes = File.Exists(outputPath) ? new FileInfo(outputPath).Length : 0L,
         };
 

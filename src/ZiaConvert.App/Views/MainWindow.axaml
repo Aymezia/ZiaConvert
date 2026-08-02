@@ -71,6 +71,13 @@
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Enregistrer sous..." Classes="ghost" FontSize="11.5"
+                        Padding="10,5" Click="OnSavePresetClick" />
+                <Button Content="Supprimer" Classes="ghost" FontSize="11.5" Padding="10,5"
+                        Command="{Binding DeleteSelectedPresetCommand}"
+                        IsVisible="{Binding CanDeleteSelectedPreset}" />
+              </StackPanel>
             </StackPanel>
             <TextBlock Text="{Binding SelectedPreset.Description}" Classes="hint" />
 
@@ -301,6 +308,45 @@
             </StackPanel>
           </Expander>
 
+          <!-- ============ SOUS-TITRES EXTERNES ============ -->
+          <Expander Classes="section" IsVisible="{Binding IsMkvTarget}">
+            <Expander.Header>
+              <TextBlock Text="Sous-titres externes" Classes="sectionTitle" />
+            </Expander.Header>
+
+            <StackPanel Spacing="12">
+              <Button Content="Ajouter des sous-titres..." Classes="ghost" FontSize="11.5"
+                      Padding="10,5" Click="OnAddSubtitleClick" HorizontalAlignment="Left" />
+
+              <ItemsControl ItemsSource="{Binding ExternalSubtitles}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SubtitleEntryViewModel">
+                    <Border Background="{DynamicResource ZiaSurfaceHigh}" CornerRadius="10"
+                            Padding="12,10" Margin="0,0,0,8">
+                      <StackPanel Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Grid.Column="0" Text="{Binding FileName}" FontWeight="Medium"
+                                     TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          <Button Grid.Column="1" Content="Retirer" Classes="ghost" FontSize="11"
+                                  Padding="8,4" Command="{Binding RemoveCommand}" />
+                        </Grid>
+                        <Grid ColumnDefinitions="*,10,*">
+                          <TextBox Grid.Column="0" Text="{Binding Language}" FontSize="12"
+                                    Watermark="langue (fre, eng...)" />
+                          <TextBox Grid.Column="2" Text="{Binding Title}" FontSize="12"
+                                    Watermark="titre affiche (facultatif)" />
+                        </Grid>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Classes="hint"
+                         Text="Integres a la sortie sans reencoder l'image ni le son, si le reste le permet. Plusieurs fichiers pour plusieurs langues." />
+            </StackPanel>
+          </Expander>
+
           <!-- ============ GIF ============ -->
           <Expander Classes="section" IsExpanded="True" IsVisible="{Binding IsGifTarget}">
             <Expander.Header>
@@ -431,7 +477,8 @@
                         <Border Classes="badge"
                                 Classes.queued="{Binding IsQueued}"
                                 Classes.running="{Binding IsRunning}"
-                                Classes.succeeded="{Binding IsSucceeded}"
+                                Classes.succeeded="{Binding IsCleanSuccess}"
+                                Classes.warning="{Binding HasWarning}"
                                 Classes.failed="{Binding HasFailed}"
                                 Classes.cancelled="{Binding IsCancelled}"
                                 Classes.skipped="{Binding IsSkipped}">
@@ -439,7 +486,11 @@
                         </Border>
                         <TextBlock Text="{Binding Status}" Classes="muted mono" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding Detail}" Classes="muted" VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" />
+                                   TextTrimming="CharacterEllipsis" IsVisible="{Binding !HasWarning}" />
+                        <TextBlock Text="{Binding WarningMessage}" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource ZiaWarning}" FontSize="12"
+                                   TextTrimming="CharacterEllipsis" IsVisible="{Binding HasWarning}"
+                                   ToolTip.Tip="{Binding WarningMessage}" />
                       </StackPanel>
                     </Grid>
                   </Border>

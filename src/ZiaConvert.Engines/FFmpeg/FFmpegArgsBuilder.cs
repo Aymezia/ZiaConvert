@@ -40,7 +40,23 @@ internal sealed class FFmpegArgsBuilder
     }
 
     /// <summary>Options globales communes, posees avant toute lecture de fichier.</summary>
-    private static ArgumentBuilder Prologue(ConversionRequest request)
+    /// <param name="regenerateTimestamps">
+    /// Ajoute <c>-fflags +genpts</c> avant l'entree. Necessaire pour remuxer certaines
+    /// sources aux horodatages discontinus (verifie sur un flux MPEG-2/AC3 de type rip
+    /// DVD : sans ce reglage, la copie de flux vers matroska echoue avec « Can't write
+    /// packet with unknown timestamp »). Cela ne modifie que la metadonnee de temps
+    /// recalculee a partir du flux, pas les donnees encodees elles-memes : ca reste un
+    /// remux au sens strict. Reserve au remux pour ne pas changer le comportement,
+    /// non teste, du chemin de reencodage.
+    /// </param>
+    /// <param name="extraInputs">
+    /// Fichiers de sous-titres externes, ajoutes comme entrees supplementaires (index 1,
+    /// 2...) apres l'entree principale. Reçoivent le meme decoupage qu'elle : sans cela,
+    /// des sous-titres externes sur un extrait decoupe partiraient du debut du fichier
+    /// entier et seraient desynchronises.
+    /// </param>
+    private static ArgumentBuilder Prologue(
+        ConversionRequest request, bool regenerateTimestamps = false, IReadOnlyList<string>? extraInputs = null)
     {
         var builder = new ArgumentBuilder()
             .Add("-hide_banner")
@@ -52,25 +68,43 @@ internal sealed class FFmpegArgsBuilder
             .Add("-progress", "pipe:1")
 
             // On ecrit dans un .part qui peut subsister apres une annulation brutale.
-            .Add("-y");
+            .Add("-y")
+            .AddIf(regenerateTimestamps, "-fflags", "+genpts");
 
-        // Le positionnement avant -i fait un saut sur index, quasi instantane. Place apres,
-        // ffmpeg decoderait tout depuis le debut pour jeter le resultat.
-        if (Trim(request) is { Start: { } start })
+        var trim = Trim(request);
+
+        AddInput(builder, request.InputPath, trim);
+
+        if (extraInputs is not null)
+        {
+            foreach (var path in extraInputs)
+            {
+                AddInput(builder, path, trim);
+            }
+        }
+
+        return builder;
+    }
+
+    /// <summary>
+    /// Positionnement avant -i : saut sur index, quasi instantane. Place apres, ffmpeg
+    /// decoderait tout depuis le debut pour jeter le resultat. Une duree est moins ambigue
+    /// qu'un point de fin : la signification de -to varie selon les versions quand elle
+    /// est combinee a un -ss place avant l'entree.
+    /// </summary>
+    private static void AddInput(ArgumentBuilder builder, string path, (TimeSpan? Start, TimeSpan? Duration) trim)
+    {
+        if (trim.Start is { } start)
         {
             builder.Add("-ss", start);
         }
 
-        builder.Add("-i", request.InputPath);
+        builder.Add("-i", path);
 
-        // Une duree est moins ambigue qu'un point de fin : la signification de -to varie
-        // selon les versions quand elle est combinee a un -ss place avant l'entree.
-        if (Trim(request) is { Duration: { } duration })
+        if (trim.Duration is { } duration)
         {
             builder.Add("-t", duration);
         }
-
-        return builder;
     }
 
     private FFmpegPlan BuildVideo(ConversionRequest request, HardwareSupport hardware)
@@ -78,26 +112,65 @@ internal sealed class FFmpegArgsBuilder
         var options = request.Options as VideoOptions ?? new VideoOptions();
         var container = request.TargetFormat.Id;
 
-        if (TryRemux(request, options, out var reason))
+        if (options.ExternalSubtitles.Count > 0 && container != "mkv")
         {
-            var remuxArguments = Prologue(request)
+            // Matroska est le seul conteneur courant a accepter du texte (subrip/ass) tel
+            // quel : mp4 exigerait une conversion vers mov_text, webm n'accepte pas subrip
+            // du tout. Plutot que de deviner, on refuse clairement.
+            throw new UnsupportedConversionException(
+                $"Les sous-titres externes ne peuvent etre integres que dans un conteneur mkv, pas {container}.");
+        }
+
+        var canRemux = TryRemux(request, options, out var reason);
+
+        if (!canRemux && options.RemuxOnly)
+        {
+            // Une demande de remux explicite doit echouer clairement plutot que de
+            // basculer sans prevenir sur un reencodage complet aux reglages par defaut,
+            // invisible tant qu'on n'a pas remarque le temps que ca prend.
+            throw new UnsupportedConversionException(BuildRemuxOnlyFailure(request, container, reason));
+        }
+
+        var mapping = BuildStreamMapping(options);
+        var subtitleFiles = options.ExternalSubtitles.Count > 0
+            ? options.ExternalSubtitles.Select(s => s.FilePath).ToList()
+            : null;
+
+        if (canRemux)
+        {
+            var remuxBuilder = Prologue(request, regenerateTimestamps: true, extraInputs: subtitleFiles);
+
+            if (mapping is not null)
+            {
+                // Une fois la selection explicite, -c copy en tete suffit a copier le
+                // codec de tout ce qui est mappe (video, audio choisie, sous-titre choisi,
+                // sous-titres externes) : pas besoin d'un -c:s copy separe comme dans le
+                // cas par defaut ci-dessous.
+                remuxBuilder.AddRange(mapping);
+            }
+
+            remuxBuilder
                 .Add("-c", "copy")
 
                 // Sans cela, un MP4 issu d'un MKV garde des horodatages qui commencent
                 // parfois loin de zero, ce que certains lecteurs interpretent mal.
                 .Add("-avoid_negative_ts", "make_zero")
-                .AddIf(options.KeepSubtitles && container is "mkv" or "mp4", "-c:s", "copy")
-                .AddIf(!options.KeepSubtitles, "-sn")
+                .AddIf(mapping is null && options.KeepSubtitles && container is "mkv" or "mp4", "-c:s", "copy")
+                .AddIf(mapping is null && !options.KeepSubtitles, "-sn")
                 .Add("-f", FFmpegMuxers.For(container)!)
-                .Add(request.WorkingPath)
-                .Build();
+                .Add(request.WorkingPath);
 
-            return new FFmpegPlan(remuxArguments, IsRemux: true, "Copie des flux sans reencodage");
+            return new FFmpegPlan(remuxBuilder.Build(), IsRemux: true, "Copie des flux sans reencodage");
         }
 
         var codec = ResolveVideoCodec(options.Codec, container);
         var encoder = hardware.ResolveEncoder(codec, options.Hardware);
-        var builder = Prologue(request);
+        var builder = Prologue(request, extraInputs: subtitleFiles);
+
+        if (mapping is not null)
+        {
+            builder.AddRange(mapping);
+        }
 
         if (BuildVideoFilters(options) is { } filters)
         {
@@ -123,8 +196,16 @@ internal sealed class FFmpegArgsBuilder
 
         ApplyAudio(builder, options, container);
 
+        // Toute piste de sous-titres mappee (choisie, gardee en bloc, ou externe) doit
+        // rester une copie : sans -c:s explicite ici, ffmpeg choisirait son encodeur de
+        // sous-titres par defaut pour le reencodage, qui ne correspond pas forcement au
+        // format d'origine.
+        var hasMappedSubtitles = mapping is not null &&
+            (options.SubtitleTrackIndex is not null || options.ExternalSubtitles.Count > 0 || options.KeepSubtitles);
+
         builder
-            .AddIf(!options.KeepSubtitles, "-sn")
+            .AddIf(hasMappedSubtitles, "-c:s", "copy")
+            .AddIf(mapping is null && !options.KeepSubtitles, "-sn")
             .Add("-f", FFmpegMuxers.For(container)!)
             .Add(request.WorkingPath);
 
@@ -265,6 +346,33 @@ internal sealed class FFmpegArgsBuilder
     }
 
     /// <summary>
+    /// Compose un message explicite pour un remux impossible, en suggerant les
+    /// conteneurs qui accepteraient les codecs source tels quels.
+    /// </summary>
+    private static string BuildRemuxOnlyFailure(ConversionRequest request, string container, string reason)
+    {
+        var file = Path.GetFileName(request.InputPath);
+        var alternatives = request.SourceInfo is { } info
+            ? SuggestRemuxableContainers(info).ToList()
+            : [];
+
+        var suggestion = alternatives.Count > 0
+            ? $" Essayez plutot : {string.Join(", ", alternatives)}."
+            : " Aucun conteneur courant n'accepte ces codecs sans reencodage.";
+
+        // Les motifs issus de ContainerCompatibility se terminent deja par un point,
+        // ceux issus des verifications ci-dessus non : on normalise avant d'assembler.
+        var cleanReason = reason.TrimEnd('.');
+
+        return $"« {file} » ne peut pas etre remuxe vers {container} : {cleanReason}.{suggestion}";
+    }
+
+    /// <summary>Conteneurs usuels qui accepteraient les codecs de la source sans reencodage.</summary>
+    private static IEnumerable<string> SuggestRemuxableContainers(MediaInfo source) =>
+        new[] { "mkv", "mp4", "mov", "webm", "ts" }
+            .Where(candidate => ContainerCompatibility.CanRemux(candidate, source, out _));
+
+    /// <summary>
     /// Assemble la chaine de filtres video.
     /// </summary>
     /// <remarks>
@@ -402,6 +510,80 @@ internal sealed class FFmpegArgsBuilder
         {
             builder.Add("-crf", quality ?? 23).Add("-preset", "medium");
         }
+    }
+
+    /// <summary>
+    /// Construit une selection explicite de flux pour une source a plusieurs pistes audio
+    /// ou sous-titres (rip DVD/Blu-ray multilingue, piste de commentaire...).
+    /// </summary>
+    /// <remarks>
+    /// Rend <c>null</c> quand aucune selection n'est demandee : ffmpeg garde alors son
+    /// choix automatique habituel (premiere piste de chaque type), un comportement deja
+    /// eprouve qu'il serait risque de changer pour tout le monde au passage.
+    /// </remarks>
+    private static IReadOnlyList<string>? BuildStreamMapping(VideoOptions options)
+    {
+        if (options.AudioTrackIndex is null && options.SubtitleTrackIndex is null && options.ExternalSubtitles.Count == 0)
+        {
+            return null;
+        }
+
+        // La video n'a pas d'index a choisir ici : une source a plusieurs pistes video
+        // (angles multiples) reste hors champ, comme le reste du moteur aujourd'hui.
+        var maps = new List<string> { "-map", "0:v:0" };
+
+        if (!options.RemoveAudio)
+        {
+            maps.Add("-map");
+
+            // « ? » rend le flux facultatif : sans lui, une source qui n'aurait pas de
+            // piste audio du tout ferait echouer ffmpeg sur un -map introuvable.
+            maps.Add(options.AudioTrackIndex is { } audioIndex
+                ? $"0:{audioIndex.ToString(CultureInfo.InvariantCulture)}"
+                : "0:a:0?");
+        }
+
+        var embeddedSubtitleMapped = false;
+
+        if (options.SubtitleTrackIndex is { } subtitleIndex)
+        {
+            maps.Add("-map");
+            maps.Add($"0:{subtitleIndex.ToString(CultureInfo.InvariantCulture)}");
+            embeddedSubtitleMapped = true;
+        }
+        else if (options.ExternalSubtitles.Count == 0 && options.KeepSubtitles)
+        {
+            // Le bloc « toutes les pistes existantes » n'est permis que seul : en ajouter
+            // par-dessus des sous-titres externes, il faudrait numeroter ces derniers
+            // derriere un total de pistes embarquees inconnu a l'avance.
+            maps.Add("-map");
+            maps.Add("0:s?");
+        }
+
+        for (var i = 0; i < options.ExternalSubtitles.Count; i++)
+        {
+            // Fichier externe i : entree ffmpeg d'index (i + 1), l'entree 0 etant la source.
+            maps.Add("-map");
+            maps.Add($"{(i + 1).ToString(CultureInfo.InvariantCulture)}:0");
+
+            var import = options.ExternalSubtitles[i];
+            var outputIndex = (embeddedSubtitleMapped ? 1 : 0) + i;
+            var specifier = $"-metadata:s:s:{outputIndex.ToString(CultureInfo.InvariantCulture)}";
+
+            if (import.Language is { Length: > 0 } language)
+            {
+                maps.Add(specifier);
+                maps.Add($"language={language}");
+            }
+
+            if (import.Title is { Length: > 0 } title)
+            {
+                maps.Add(specifier);
+                maps.Add($"title={title}");
+            }
+        }
+
+        return maps;
     }
 
     private static void ApplyAudio(ArgumentBuilder builder, VideoOptions options, string container)

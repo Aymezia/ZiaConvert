@@ -34,6 +34,116 @@ public sealed class FFmpegEngineIntegrationTests
     }
 
     [Fact]
+    public async Task Remuxe_un_rip_DVD_malgre_ses_horodatages_discontinus()
+    {
+        // Le cas reel qui a motive --remux-only : un flux MPEG-2/AC3 sans genpts fait
+        // echouer le muxer matroska avec « Can't write packet with unknown timestamp ».
+        var output = _fixture.OutputPath("depuis-dvd.mkv");
+        var request = Request(_fixture.DvdRip, output, new VideoOptions { RemuxOnly = true });
+
+        var result = await _fixture.Services.Executor.ExecuteAsync(request);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Contains("copie", result.Detail ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        var info = await _fixture.Services.Probe.ProbeAsync(output);
+
+        // Toujours mpeg2video/ac3 : un vrai remux ne touche jamais aux codecs.
+        Assert.Equal("mpeg2video", info.PrimaryVideo?.CodecName);
+        Assert.Equal("ac3", info.PrimaryAudio?.CodecName);
+    }
+
+    [Fact]
+    public async Task RemuxOnly_echoue_plutot_que_de_reencoder_silencieusement()
+    {
+        // mp4 n'accepte pas mpeg2video : sans RemuxOnly, ce serait un reencodage complet
+        // aux reglages par defaut, une surprise pour qui voulait seulement re-emballer.
+        var output = _fixture.OutputPath("depuis-dvd.mp4");
+        var request = Request(_fixture.DvdRip, output, new VideoOptions { RemuxOnly = true });
+
+        var result = await _fixture.Services.Executor.ExecuteAsync(request);
+
+        Assert.False(result.Success);
+        Assert.Contains("mpeg2video", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(output));
+    }
+
+    [Fact]
+    public async Task Conserve_seulement_la_piste_audio_choisie()
+    {
+        // Source a deux pistes (voir FFmpegMediaFixture) : la piste 2 (fra, 880 Hz) doit
+        // survivre seule, la piste 1 (eng, 440 Hz) doit disparaitre.
+        var output = _fixture.OutputPath("piste-choisie.mkv");
+        var request = Request(_fixture.MultiTrackVideo, output, new VideoOptions { AudioTrackIndex = 2 });
+
+        var result = await _fixture.Services.Executor.ExecuteAsync(request);
+        Assert.True(result.Success, result.ErrorMessage);
+
+        var info = await _fixture.Services.Probe.ProbeAsync(output);
+        var audioStreams = info.Streams.Where(s => s.Kind == MediaStreamKind.Audio).ToList();
+
+        Assert.Single(audioStreams);
+    }
+
+    [Fact]
+    public async Task Integre_un_sous_titre_externe_sans_reencoder()
+    {
+        var output = _fixture.OutputPath("avec-sous-titre.mkv");
+        var request = Request(_fixture.ShortVideo, output, new VideoOptions
+        {
+            ExternalSubtitles = [new SubtitleImport { FilePath = _fixture.SubtitleFile, Language = "fre" }],
+        });
+
+        var stopwatch = Stopwatch.StartNew();
+        var result = await _fixture.Services.Executor.ExecuteAsync(request);
+        stopwatch.Stop();
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Contains("copie", result.Detail ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        // Integrer un sous-titre ne doit jamais declencher un reencodage : ca reste une
+        // simple copie de flux, tout comme sans sous-titre.
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(10),
+            $"L'integration a pris {stopwatch.Elapsed.TotalSeconds:0.0} s, un reencodage a du se declencher.");
+
+        var info = await _fixture.Services.Probe.ProbeAsync(output);
+        var subtitleStreams = info.Streams.Where(s => s.Kind == MediaStreamKind.Subtitle).ToList();
+
+        Assert.Single(subtitleStreams);
+    }
+
+    [Fact]
+    public async Task Refuse_les_sous_titres_externes_vers_un_conteneur_autre_que_mkv()
+    {
+        var output = _fixture.OutputPath("avec-sous-titre.mp4");
+        var request = Request(_fixture.ShortVideo, output, new VideoOptions
+        {
+            ExternalSubtitles = [new SubtitleImport { FilePath = _fixture.SubtitleFile }],
+        });
+
+        var result = await _fixture.Services.Executor.ExecuteAsync(request);
+
+        Assert.False(result.Success);
+        Assert.Contains("mkv", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(output));
+    }
+
+    [Fact]
+    public async Task N_avertit_pas_sur_une_conversion_normale()
+    {
+        // Verifie avec la vraie sonde FFprobe (pas un double) : une conversion saine ne
+        // doit jamais declencher de faux positif sur la comparaison de duree.
+        var output = _fixture.OutputPath("normale.mkv");
+        var request = Request(_fixture.ShortVideo, output, new VideoOptions { Codec = VideoCodec.H265 });
+
+        var result = await _fixture.Services.Executor.ExecuteAsync(request);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Null(result.VerificationWarning);
+    }
+
+    [Fact]
     public async Task Ne_laisse_aucun_fichier_temporaire_apres_une_reussite()
     {
         var output = _fixture.OutputPath("propre.mkv");

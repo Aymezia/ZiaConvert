@@ -67,6 +67,56 @@ public partial class MainWindow : Window
 #pragma warning restore CA1031
     }
 
+    private async void OnAddSubtitleClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Choisir des fichiers de sous-titres",
+                AllowMultiple = true,
+                FileTypeFilter =
+                [
+                    new FilePickerFileType("Sous-titres")
+                    {
+                        Patterns = ["*.srt", "*.ass", "*.ssa", "*.vtt"],
+                    },
+                ],
+            });
+
+            viewModel.AddSubtitleFiles(files
+                .Select(file => file.TryGetLocalPath())
+                .Where(path => !string.IsNullOrEmpty(path))
+                .Select(path => path!));
+        }
+#pragma warning disable CA1031 // Un selecteur de fichiers en echec ne doit pas fermer l'application.
+        catch (Exception)
+        {
+            // Rien de plus a faire : la section reste vide, l'utilisateur peut reessayer.
+        }
+#pragma warning restore CA1031
+    }
+
+    private async void OnSavePresetClick(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        var name = await SavePresetDialog.AskAsync(this);
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            viewModel.SaveCurrentAsPreset(name.Trim());
+        }
+    }
+
     /// <summary>
     /// Deplie les dossiers deposes. Glisser un dossier de rushes est un geste naturel ;
     /// ne rien faire dans ce cas passerait pour un bogue.

@@ -195,6 +195,16 @@
       <Setter Property="Foreground" Value="{DynamicResource ZiaSuccess}" />
     </Style>
 
+    <!-- Reussite avec reserve : le fichier existe, mais la re-verification post-conversion
+         a trouve quelque chose de suspect (sortie trop courte...). Distinct du vert
+         "termine" et du rouge "echec" : ni l'un ni l'autre ne serait honnete. -->
+    <Style Selector="Border.badge.warning">
+      <Setter Property="Background" Value="#26D0973F" />
+    </Style>
+    <Style Selector="Border.badge.warning TextBlock.badgeText">
+      <Setter Property="Foreground" Value="{DynamicResource ZiaWarning}" />
+    </Style>
+
     <Style Selector="Border.badge.failed">
       <Setter Property="Background" Value="#26C0574A" />
     </Style>

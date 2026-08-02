@@ -60,6 +60,26 @@ public sealed partial class FileEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool _isSucceeded;
 
+    /// <summary>
+    /// Vrai quand la conversion a reussi mais que la re-verification post-conversion a
+    /// trouve quelque chose de suspect (sortie beaucoup plus courte que la source...).
+    /// Le fichier existe, le moteur n'a rien signale : ca reste un succes, pas un echec,
+    /// mais ca merite d'attirer l'œil plutot que de se fondre dans un badge « Termine ».
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasWarning;
+
+    [ObservableProperty]
+    private string? _warningMessage;
+
+    /// <summary>
+    /// Reussite propre, sans reserve : distincte de <see cref="IsSucceeded" />, qui reste
+    /// vrai meme avec un avertissement (le fichier a bien ete produit). Pilote uniquement
+    /// la couleur du badge — le decompte du lot compte toujours ces lignes comme reussies.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isCleanSuccess;
+
     [ObservableProperty]
     private bool _canCancel = true;
 
@@ -141,7 +161,10 @@ public sealed partial class FileEntryViewModel : ObservableObject
                 Progress = 100d;
                 Status = $"Termine en {Seconds(_job.Result?.Duration)}";
                 Detail = _job.Result?.Detail;
-                BadgeWord = "TERMINE";
+                WarningMessage = _job.Result?.VerificationWarning;
+                HasWarning = WarningMessage is { Length: > 0 };
+                IsCleanSuccess = !HasWarning;
+                BadgeWord = HasWarning ? "A VERIFIER" : "TERMINE";
                 break;
 
             case JobState.Failed:

@@ -5,6 +5,8 @@ using ZiaConvert.Core.Processes;
 using ZiaConvert.Core.Routing;
 using ZiaConvert.Core.Tools;
 using ZiaConvert.Engines.FFmpeg;
+using ZiaConvert.Engines.Image;
+using ZiaConvert.Engines.Upscale;
 
 namespace ZiaConvert.Engines;
 
@@ -23,6 +25,8 @@ public sealed class ConversionServices
         IEngineLocator locator,
         IMediaProbe probe,
         HardwareDetector hardware,
+        UpscaleBenchmark upscaleBenchmark,
+        FileSizeEstimator fileSizeEstimator,
         IReadOnlyList<IConversionEngine> engines,
         ConversionRouter router,
         ConversionExecutor executor,
@@ -32,6 +36,8 @@ public sealed class ConversionServices
         Locator = locator;
         Probe = probe;
         Hardware = hardware;
+        UpscaleBenchmark = upscaleBenchmark;
+        FileSizeEstimator = fileSizeEstimator;
         Engines = engines;
         Router = router;
         Executor = executor;
@@ -45,6 +51,10 @@ public sealed class ConversionServices
     public IMediaProbe Probe { get; }
 
     public HardwareDetector Hardware { get; }
+
+    public UpscaleBenchmark UpscaleBenchmark { get; }
+
+    public FileSizeEstimator FileSizeEstimator { get; }
 
     public IReadOnlyList<IConversionEngine> Engines { get; }
 
@@ -60,17 +70,22 @@ public sealed class ConversionServices
         var locator = new ToolLocator();
         var probe = new FFprobeService(processRunner, locator);
         var hardware = new HardwareDetector(processRunner, locator, loggerFactory?.CreateLogger<HardwareDetector>());
+        var upscaleBenchmark = new UpscaleBenchmark(processRunner, locator, loggerFactory?.CreateLogger<UpscaleBenchmark>());
+        var fileSizeEstimator = new FileSizeEstimator(processRunner, locator, hardware, loggerFactory?.CreateLogger<FileSizeEstimator>());
 
         IReadOnlyList<IConversionEngine> engines =
         [
             new FFmpegEngine(processRunner, locator, probe, hardware, loggerFactory?.CreateLogger<FFmpegEngine>()),
+            new MagickEngine(processRunner, locator, loggerFactory?.CreateLogger<MagickEngine>()),
+            new RealEsrganEngine(processRunner, locator, upscaleBenchmark, loggerFactory?.CreateLogger<RealEsrganEngine>()),
         ];
 
         var formats = FormatRegistry.Default;
         var router = new ConversionRouter(engines, probe, formats, loggerFactory?.CreateLogger<ConversionRouter>());
-        var executor = new ConversionExecutor(router, loggerFactory?.CreateLogger<ConversionExecutor>());
+        var executor = new ConversionExecutor(router, probe, loggerFactory?.CreateLogger<ConversionExecutor>());
 
-        return new ConversionServices(processRunner, locator, probe, hardware, engines, router, executor, formats);
+        return new ConversionServices(
+            processRunner, locator, probe, hardware, upscaleBenchmark, fileSizeEstimator, engines, router, executor, formats);
     }
 
     /// <summary>Cree une file d'attente branchee sur ces services.</summary>

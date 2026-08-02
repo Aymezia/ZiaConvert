@@ -52,6 +52,18 @@ public sealed record VideoOptions : ConversionOptions
     /// </summary>
     public bool AllowRemux { get; init; } = true;
 
+    /// <summary>
+    /// Exige une copie de flux pure : la conversion echoue si le conteneur cible n'accepte
+    /// pas les codecs source, plutot que de retomber silencieusement sur un reencodage.
+    /// </summary>
+    /// <remarks>
+    /// Utile pour un rip DVD (MPEG-2, AC3) qu'on veut seulement re-emballer, sans toucher
+    /// a l'image ni a la piste son : sans ce garde-fou, une simple erreur de conteneur cible
+    /// (mp4 au lieu de mkv) declencherait un reencodage complet aux reglages par defaut,
+    /// invisible tant qu'on n'a pas remarque le temps que ca prend.
+    /// </remarks>
+    public bool RemuxOnly { get; init; }
+
     public ScalingAlgorithm Scaling { get; init; } = ScalingAlgorithm.Lanczos;
 
     /// <summary>Debut du extrait a convertir. <c>null</c> part du debut du fichier.</summary>
@@ -65,4 +77,27 @@ public sealed record VideoOptions : ConversionOptions
 
     /// <summary>Conserve les pistes de sous-titres quand le conteneur cible les accepte.</summary>
     public bool KeepSubtitles { get; init; } = true;
+
+    /// <summary>
+    /// Piste audio a conserver, par son index absolu tel qu'affiche par <c>zia probe</c>
+    /// (ex. <c>[1] Audio aac ...</c> -> <c>1</c>). <c>null</c> laisse ffmpeg choisir seul,
+    /// ce qui prend en general la premiere piste — insuffisant des qu'une source (rip DVD,
+    /// Blu-ray multilingue) porte plusieurs langues ou une piste de commentaire.
+    /// </summary>
+    public int? AudioTrackIndex { get; init; }
+
+    /// <summary>
+    /// Piste de sous-titres a conserver seule, par son index absolu. <c>null</c> suit
+    /// <see cref="KeepSubtitles" /> (toutes ou aucune) ; renseigne, seule cette piste est
+    /// gardee, les autres sont ecartees meme si <see cref="KeepSubtitles" /> vaut vrai.
+    /// </summary>
+    public int? SubtitleTrackIndex { get; init; }
+
+    /// <summary>
+    /// Sous-titres externes (.srt, .ass, .ssa, .vtt) a integrer a la sortie, dans l'ordre
+    /// donne. Reserve au conteneur mkv, seul a accepter ces pistes texte sans reencoder le
+    /// reste : demander a la fois des sous-titres externes et un autre conteneur echoue
+    /// clairement plutot que d'ignorer les fichiers en silence.
+    /// </summary>
+    public IReadOnlyList<SubtitleImport> ExternalSubtitles { get; init; } = [];
 }

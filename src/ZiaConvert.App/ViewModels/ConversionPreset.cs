@@ -73,5 +73,11 @@ public sealed record ConversionPreset
         },
     ];
 
+    /// <summary>
+    /// Vrai si <paramref name="name" /> designe l'un des preglages fixes ci-dessus.
+    /// Sert a decider si un preglage peut etre supprime : ceux-la ne le peuvent pas.
+    /// </summary>
+    public static bool IsBuiltIn(string name) => All.Any(p => p.Name == name);
+
     public override string ToString() => Name;
 }

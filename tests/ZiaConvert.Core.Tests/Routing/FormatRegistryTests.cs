@@ -89,6 +89,18 @@ public sealed class FormatRegistryTests
     }
 
     [Fact]
+    public void Reconnait_le_format_VOB_des_rips_DVD()
+    {
+        var vob = _registry.FindByExtension(".vob");
+
+        Assert.NotNull(vob);
+        Assert.Equal(FormatFamily.Video, vob.Family);
+
+        // On remuxe ou reencode depuis un VOB, on n'en fabrique jamais.
+        Assert.False(vob.CanBeTarget);
+    }
+
+    [Fact]
     public void TargetsFor_propose_l_extraction_audio_depuis_une_video()
     {
         var source = _registry.FindById("mp4");

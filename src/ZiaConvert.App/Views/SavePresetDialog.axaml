@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ZiaConvert.App.Views.SavePresetDialog"
+        Title="Enregistrer le preglage"
+        Width="400" Height="200"
+        MinWidth="400" MinHeight="200"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ZiaBackground}">
+
+  <StackPanel Margin="22" Spacing="14">
+    <TextBlock Text="Enregistrer les reglages actuels" Classes="h1" />
+    <TextBlock Classes="hint"
+               Text="Codec, qualite, resolution et audio du panneau seront repris tels quels. Le preglage restera modifiable ensuite, comme les autres." />
+
+    <StackPanel Spacing="6" Margin="0,4,0,0">
+      <TextBlock Text="NOM" Classes="fieldLabel" />
+      <TextBox Name="NameBox" Watermark="ex. Archivage 4K" />
+    </StackPanel>
+
+    <TextBlock Name="ErrorText" Foreground="{DynamicResource ZiaError}" FontSize="11.5"
+               TextWrapping="Wrap" IsVisible="False" />
+
+    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+      <Button Grid.Column="1" Content="Annuler" Classes="ghost" Click="OnCancelClick" Margin="0,0,8,0" />
+      <Button Grid.Column="2" Content="Enregistrer" Classes="accent" Click="OnSaveClick" />
+    </Grid>
+  </StackPanel>
+
+</Window>

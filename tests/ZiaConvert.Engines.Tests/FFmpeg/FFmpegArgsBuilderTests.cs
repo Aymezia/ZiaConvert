@@ -1,4 +1,5 @@
 using System.Globalization;
+using ZiaConvert.Core.Abstractions;
 using ZiaConvert.Core.Model;
 using ZiaConvert.Core.Options;
 using ZiaConvert.Core.Routing;
@@ -70,6 +71,258 @@ public sealed class FFmpegArgsBuilderTests
 
         Assert.False(plan.IsRemux);
         Assert.NotEmpty(plan.Description);
+    }
+
+    [Fact]
+    public void RemuxOnly_ne_change_rien_quand_le_remux_est_possible()
+    {
+        var request = Request("video.mp4", "video.mkv", new VideoOptions { RemuxOnly = true });
+
+        var plan = _builder.Build(request, NoHardware);
+
+        Assert.True(plan.IsRemux);
+    }
+
+    [Fact]
+    public void RemuxOnly_regenere_les_horodatages_du_remux()
+    {
+        // Verifie empiriquement sur un flux MPEG-2/AC3 (profil rip DVD) : sans ce
+        // reglage, la copie de flux vers matroska echoue avec « Can't write packet with
+        // unknown timestamp ». Ca ne touche que la metadonnee de temps, pas les donnees
+        // encodees : ca reste un remux au sens strict.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions { RemuxOnly = true });
+
+        var plan = _builder.Build(request, NoHardware);
+
+        Assert.Contains("+genpts", plan.Arguments);
+    }
+
+    [Fact]
+    public void N_ajoute_pas_de_genpts_hors_remux_only()
+    {
+        // Reserve au remux explicite : le chemin de reencodage, non teste avec ce
+        // reglage, ne doit pas en heriter par accident.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions { Codec = VideoCodec.H265 });
+
+        var plan = _builder.Build(request, NoHardware);
+
+        Assert.DoesNotContain("+genpts", plan.Arguments);
+    }
+
+    [Fact]
+    public void RemuxOnly_echoue_clairement_quand_le_remux_est_impossible()
+    {
+        // h264 ne rentre pas dans un WebM : sans RemuxOnly, ce serait un reencodage
+        // silencieux aux reglages par defaut. Avec RemuxOnly, ca doit echouer plutot
+        // que de surprendre l'utilisateur par une conversion soudain lente.
+        var request = Request("video.mp4", "video.webm", new VideoOptions { RemuxOnly = true });
+
+        var exception = Assert.Throws<UnsupportedConversionException>(() => _builder.Build(request, NoHardware));
+
+        Assert.Contains("video.mp4", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("webm", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RemuxOnly_suggere_des_conteneurs_qui_fonctionneraient()
+    {
+        var request = Request("video.mp4", "video.webm", new VideoOptions { RemuxOnly = true });
+
+        var exception = Assert.Throws<UnsupportedConversionException>(() => _builder.Build(request, NoHardware));
+
+        // h264 (source par defaut dans Request) rentre dans mp4 et mkv : le message doit
+        // orienter vers un conteneur qui marcherait reellement, pas juste dire « non ».
+        Assert.Contains("mkv", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void N_ajoute_aucun_mappage_sans_selection_de_piste()
+    {
+        // Comportement par defaut, deja eprouve : ffmpeg choisit seul la premiere piste
+        // de chaque type. Le changer pour tout le monde serait un risque non justifie.
+        var plan = _builder.Build(Request("video.mp4", "video.mkv"), NoHardware);
+
+        Assert.DoesNotContain("-map", plan.Arguments);
+    }
+
+    [Fact]
+    public void Mappe_la_piste_audio_choisie_en_remux()
+    {
+        var request = Request("video.mp4", "video.mkv", new VideoOptions { AudioTrackIndex = 2 });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        Assert.True(plan.IsRemux);
+        Assert.Contains("-map", arguments);
+        Assert.Contains("0:v:0", arguments);
+        Assert.Contains("0:2", arguments);
+    }
+
+    [Fact]
+    public void Mappe_la_piste_audio_choisie_en_reencodage()
+    {
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            AudioTrackIndex = 2,
+            Codec = VideoCodec.H265,
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+
+        Assert.False(plan.IsRemux);
+        Assert.Contains("0:2", plan.Arguments);
+    }
+
+    [Fact]
+    public void Mappe_une_seule_piste_de_sous_titres_quand_choisie()
+    {
+        var request = Request("video.mp4", "video.mkv", new VideoOptions { SubtitleTrackIndex = 3 });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        Assert.Contains("0:3", arguments);
+
+        // Une selection precise remplace le « toutes les pistes » par defaut : le
+        // mappage generique des sous-titres ne doit pas cohabiter avec un choix explicite.
+        Assert.DoesNotContain("0:s?", arguments);
+    }
+
+    [Fact]
+    public void Mappe_toutes_les_pistes_de_sous_titres_sans_selection_precise()
+    {
+        // KeepSubtitles=true est le defaut : des qu'une selection de piste declenche le
+        // mode mappage explicite, ce comportement « toutes » doit survivre a la bascule.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions { AudioTrackIndex = 1 });
+
+        var plan = _builder.Build(request, NoHardware);
+
+        Assert.Contains("0:s?", plan.Arguments);
+    }
+
+    [Fact]
+    public void Ajoute_une_entree_ffmpeg_par_sous_titre_externe_et_les_mappe()
+    {
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            ExternalSubtitles =
+            [
+                new SubtitleImport { FilePath = "vostfr.srt" },
+                new SubtitleImport { FilePath = "vosta.srt" },
+            ],
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        // Entree principale (0) suivie d'une entree par sous-titre (1, 2), chacune mappee
+        // par son propre index d'entree — pas celui de la source.
+        Assert.Contains("vostfr.srt", arguments);
+        Assert.Contains("vosta.srt", arguments);
+        Assert.Contains("1:0", arguments);
+        Assert.Contains("2:0", arguments);
+    }
+
+    [Fact]
+    public void Ajoute_les_metadonnees_langue_et_titre_du_sous_titre_externe()
+    {
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            ExternalSubtitles = [new SubtitleImport { FilePath = "vostfr.srt", Language = "fre", Title = "VOSTFR" }],
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        Assert.Contains("-metadata:s:s:0", arguments);
+        Assert.Contains("language=fre", arguments);
+        Assert.Contains("title=VOSTFR", arguments);
+    }
+
+    [Fact]
+    public void Place_le_sous_titre_externe_apres_la_piste_embarquee_choisie_dans_les_metadonnees()
+    {
+        // Une piste embarquee explicitement choisie occupe la position s:0 : le sous-titre
+        // externe qui la suit doit etre numerote s:1, pas s:0.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            SubtitleTrackIndex = 3,
+            ExternalSubtitles = [new SubtitleImport { FilePath = "vostfr.srt", Language = "fre" }],
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        Assert.Contains("-metadata:s:s:1", arguments);
+        Assert.DoesNotContain("-metadata:s:s:0", arguments);
+    }
+
+    [Fact]
+    public void Refuse_les_sous_titres_externes_hors_mkv()
+    {
+        var request = Request("video.mp4", "video.mp4", new VideoOptions
+        {
+            ExternalSubtitles = [new SubtitleImport { FilePath = "vostfr.srt" }],
+        });
+
+        var exception = Assert.Throws<UnsupportedConversionException>(() => _builder.Build(request, NoHardware));
+
+        Assert.Contains("mkv", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Copie_toujours_les_flux_video_et_audio_avec_des_sous_titres_externes()
+    {
+        // Le point de la fonctionnalite : integrer un sous-titre ne doit jamais declencher
+        // un reencodage de l'image ou du son quand une simple copie suffisait sinon.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            ExternalSubtitles = [new SubtitleImport { FilePath = "vostfr.srt" }],
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+
+        Assert.True(plan.IsRemux);
+        Assert.Contains("copy", plan.Arguments);
+    }
+
+    [Fact]
+    public void Copie_les_sous_titres_gardes_en_bloc_meme_en_reencodage()
+    {
+        // Regression : avant ce correctif, choisir une piste audio precise ET garder toutes
+        // les pistes de sous-titres (comportement par defaut) tout en forcant un reencodage
+        // laissait ffmpeg choisir son encodeur de sous-titres par defaut au lieu de copier.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            AudioTrackIndex = 1,
+            Codec = VideoCodec.H265,
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        Assert.False(plan.IsRemux);
+        Assert.Contains("0:s?", arguments);
+        Assert.Contains("-c:s", arguments);
+    }
+
+    [Fact]
+    public void N_omet_aucune_piste_audio_quand_RemoveAudio_et_une_piste_video_choisie()
+    {
+        // La selection de piste ne doit pas court-circuiter RemoveAudio : les deux
+        // reglages sont independants.
+        var request = Request("video.mp4", "video.mkv", new VideoOptions
+        {
+            SubtitleTrackIndex = 1,
+            RemoveAudio = true,
+        });
+
+        var plan = _builder.Build(request, NoHardware);
+        var arguments = plan.Arguments.ToList();
+
+        Assert.DoesNotContain("0:a:0?", arguments);
+        Assert.Contains("-an", arguments);
     }
 
     [Fact]

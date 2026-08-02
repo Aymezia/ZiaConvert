@@ -20,6 +20,30 @@ sous GPL v3.
 
 FFmpeg est invoqué comme processus externe et n'est pas modifié.
 
+## ImageMagick
+
+| | |
+|---|---|
+| Licence | **Apache 2.0** |
+| Invocation | processus externe (`magick`), via le PATH ou `tools/imagemagick/` |
+| RAW | libraw compilé en dur (confirmé : `magick -list format` liste CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF, PEF, SRW en lecture) |
+| Source | <https://imagemagick.org/script/download.php> |
+
+**Non encore embarqué dans l'installeur.** Le paquet `winget` utilisé en
+développement (`ImageMagick.Q16-HDRI`) s'installe en MSIX, dont les binaires
+sont virtualisés par Windows et ne peuvent pas être copiés tels quels dans
+`dist/`. L'embarquement se fera avec le build ZIP portable officiel, au moment
+de construire l'installeur — d'ici là, `magick` doit être installé
+séparément sur la machine qui exécute ZiaConvert (l'application le détecte et
+l'indique clairement si absent, sans planter).
+
+## LibRaw
+
+| | |
+|---|---|
+| Licence | LGPL 2.1 / CDDL (au choix) |
+| Usage | compilé à l'intérieur du binaire ImageMagick ci-dessus, jamais lié directement par ZiaConvert |
+
 ### Revenir à une licence permissive
 
 Deux voies si le code doit rester fermé :
@@ -41,13 +65,27 @@ Deux voies si le code doit rester fermé :
 | CommunityToolkit.Mvvm | 8.4.2 | MIT |
 | Microsoft.Extensions.Logging.Abstractions | 10.0.0 | MIT |
 
+## Real-ESRGAN (ncnn / Vulkan)
+
+| | |
+|---|---|
+| Version | 0.2.5.0 (build ncnn-vulkan du 24/04/2022) |
+| Licence | **MIT** |
+| Invocation | processus externe (`realesrgan-ncnn-vulkan`), via le PATH ou `tools/realesrgan/` |
+| Modèles embarqués | `realesrgan-x4plus`, `realesrgan-x4plus-anime`, `realesr-animevideov3` (x2/x3/x4) |
+| GPU | Vulkan requis (Intel, AMD, NVIDIA) |
+| Source | <https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0> |
+
+**Non encore embarqué dans l'installeur**, pour la même raison qu'ImageMagick :
+en développement l'outil est installé dans `%LOCALAPPDATA%\ZiaConvert\engines\`,
+qui simule l'emplacement du téléchargement à la demande prévu pour la release
+finale. D'ici là, il doit être placé manuellement au même endroit ou accessible
+via le PATH.
+
 ## Moteurs prévus (non encore livrés)
 
 | Composant | Licence | Distribution prévue |
 |---|---|---|
-| ImageMagick / Magick.NET | Apache 2.0 | embarqué |
-| LibRaw | LGPL 2.1 / CDDL | embarqué (via ImageMagick) |
-| Real-ESRGAN ncnn Vulkan | MIT | embarqué |
 | LibreOffice | MPL 2.0 | **non redistribué** — téléchargé à la demande ou détecté sur la machine |
 
 LibreOffice n'étant jamais redistribué avec ZiaConvert, sa licence n'a aucune

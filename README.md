@@ -1,6 +1,6 @@
 # ZiaConvert
 
-Convertisseur video et audio, avec interface graphique et ligne de commande. ZiaConvert n'implemente aucun algorithme de conversion lui-meme : c'est un orchestrateur au-dessus de [FFmpeg](https://ffmpeg.org/), qui gere le routage, la progression, l'annulation propre et le parallelisme.
+Convertisseur video, audio et image, avec interface graphique et ligne de commande. ZiaConvert n'implemente aucun algorithme de conversion lui-meme : c'est un orchestrateur au-dessus de [FFmpeg](https://ffmpeg.org/), d'[ImageMagick](https://imagemagick.org/) et de [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN), qui gere le routage, la progression, l'annulation propre et le parallelisme.
 
 ## Telecharger
 
@@ -8,26 +8,35 @@ La derniere version compilee (Windows 64 bits, rien a installer) est disponible 
 
 ## Fonctionnalites
 
-- **Copie de flux sans reencodage** quand le conteneur cible accepte les codecs source (`mp4` vers `mkv` en quelques secondes plutot qu'en plusieurs minutes), avec detection automatique et repli sur le reencodage sinon.
+- **Copie de flux sans reencodage** quand le conteneur cible accepte les codecs source (`mp4` vers `mkv` en quelques secondes plutot qu'en plusieurs minutes), avec detection automatique et repli sur le reencodage sinon. Un mode strict (`--remux-only`) echoue clairement plutot que de basculer sans prevenir sur un reencodage complet — utile pour re-emballer un rip DVD (MPEG-2/AC3, format `.vob` reconnu) sans jamais toucher a l'image ni au son.
 - **Acceleration materielle** (NVENC, QuickSync, AMF) detectee par un veritable encodage de test au demarrage, pas par simple lecture de la liste des encodeurs compiles dans FFmpeg — cette liste annonce souvent des encodeurs que le materiel ne sait pas executer.
 - **Changement de cadence** en deux modes distincts : duplication d'images (instantane, mais n'ajoute aucune fluidite reelle) ou interpolation par analyse de mouvement (`minterpolate`, plus lent mais produit de vraies images intermediaires).
 - **GIF anime** avec palette de couleurs calculee sur le contenu, en une seule passe.
 - **Decoupe** par debut/fin, extraction audio, normalisation de volume (EBU R128).
 - **File de conversions** avec parallelisme borne par famille de format (une video sature deja tous les coeurs, inutile d'en lancer dix en parallele), annulation individuelle ou globale, sans jamais laisser de fichier de sortie partiel.
-- **Prereglages** (Rapide, Web, Qualite, Archivage) qui remplissent les champs plutot que de les masquer derriere un mode « personnalise ».
+- **Prereglages** (Rapide, Web, Qualite, Archivage) qui remplissent les champs plutot que de les masquer derriere un mode « personnalise » — et **prereglages personnalises** enregistrables et supprimables depuis l'application, a cote de ceux fournis.
+- **Choix de piste** audio et sous-titres par index (celui affiche par `zia probe`), pour garder la bonne langue ou le bon commentaire sur un rip multipiste.
+- **Sous-titres externes** (.srt, .ass, .ssa, .vtt) integres a une sortie mkv sans reencoder l'image ni le son, avec langue et titre par piste — pratique pour ajouter un VOSTFR trouve a part a un film ou une serie.
+- **Verification post-conversion** : la duree de la sortie est recomparee a celle de la source ; un ecart anormal est signale sans jamais transformer une conversion reussie en echec.
+- **Estimation de taille finale** avant de lancer, par un veritable echantillon encode plutot qu'une formule — exacte pour un remux, approchee par extrapolation pour un reencodage a qualite constante.
+- **Developpement RAW** (CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF, PEF, SRW) via libraw, avec balance des blancs, orientation automatique et conversion d'espace colorimetrique.
+- **Images classiques** (jpeg, png, webp, avif, heic, tiff, bmp) avec redimensionnement, choix qualite/sans-perte selon le format, et suppression optionnelle des metadonnees EXIF.
+- **Agrandissement par IA** (Real-ESRGAN) qui reconstruit du detail plutot que d'etirer les pixels — a ne pas confondre avec un redimensionnement, qui reste instantane mais n'ajoute rien. Une estimation de duree, calibree sur la machine par une mesure reelle plutot que devinee, s'affiche avant de lancer.
 
 ## Formats
 
 | Entree | Sortie |
 |---|---|
-| mp4, mkv, webm, mov, avi, m4v, wmv, flv, mpg, ts, ogv, 3gp | mp4, mkv, webm, mov, avi, m4v, wmv, flv, mpg, ts, ogv, 3gp, gif |
+| mp4, mkv, webm, mov, avi, m4v, wmv, flv, mpg, ts, ogv, 3gp, vob (lecture seule) | mp4, mkv, webm, mov, avi, m4v, wmv, flv, mpg, ts, ogv, 3gp, gif |
 | — | mp3, aac, m4a, flac, wav, opus, ogg, wma |
+| jpeg, png, webp, avif, heic, tiff, bmp, ico | jpeg, png, webp, avif, heic, tiff, bmp, ico |
+| cr2, cr3, nef, arw, dng, orf, rw2, raf, pef, srw (RAW, lecture seule) | — (developpe vers un format d'image classique) |
 
 L'extraction audio fonctionne depuis n'importe quel fichier video ou audio pris en charge.
 
 ## Compiler depuis les sources
 
-Necessite le [SDK .NET 10](https://dotnet.microsoft.com/download) et [FFmpeg](https://www.gyan.dev/ffmpeg/builds/) (build « full ») accessible dans le `PATH` ou place dans `tools/ffmpeg/` a la racine du projet.
+Necessite le [SDK .NET 10](https://dotnet.microsoft.com/download), [FFmpeg](https://www.gyan.dev/ffmpeg/builds/) (build « full »), [ImageMagick](https://imagemagick.org/script/download.php) (`magick`) et, pour l'agrandissement par IA, [Real-ESRGAN ncnn-vulkan](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.5.0) — tous accessibles dans le `PATH` ou places dans `tools/<outil>/` a la racine du projet (Real-ESRGAN a besoin d'un GPU compatible Vulkan).
 
 ```bash
 dotnet build ZiaConvert.slnx
@@ -54,6 +63,12 @@ zia film.mkv -o film.mp4 --codec h264 -q 20                 # reencodage
 zia clip.mp4 -o clip.gif --fps 15 -w 480 -ss 5 -to 10        # extrait en GIF
 zia concert.mp4 -o concert.mp3 -b 192k                       # extraction audio
 zia video.mp4 -o video-60fps.mp4 --fps 60 --interpolate      # vraie interpolation
+zia photo.cr2 -o photo.jpg                                    # developpement RAW
+zia photo.png -o photo.webp -q 85 -w 1200                    # image, redimensionnee
+zia vieille-photo.jpg -o hd.jpg --upscale --factor 4          # agrandissement IA, duree estimee affichee
+zia rip_dvd.vob -o film.mkv --remux-only                      # re-emballage strict, echec clair sinon
+zia rip_dvd.mkv -o film.mkv --audio-track 2 --subtitle-track 4  # pistes precises (voir "zia probe")
+zia film.mkv -o film.mkv --add-subtitle vostfr.srt --subtitle-lang fre --subtitle-title VOSTFR  # sous-titre externe
 zia engines                                                   # moteurs et materiel detecte
 zia --help                                                    # toutes les options
 ```
@@ -63,7 +78,7 @@ zia --help                                                    # toutes les optio
 ```
 src/
 ├── ZiaConvert.Core/       modeles, routage, file d'attente — aucune dependance a un moteur
-├── ZiaConvert.Engines/    moteur FFmpeg (arguments, progression, detection materielle)
+├── ZiaConvert.Engines/    moteurs FFmpeg, ImageMagick et Real-ESRGAN (arguments, progression, detection materielle)
 ├── ZiaConvert.App/        interface Avalonia
 └── ZiaConvert.Cli/        ligne de commande
 tests/

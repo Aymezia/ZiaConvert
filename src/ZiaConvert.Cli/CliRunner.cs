@@ -1,7 +1,10 @@
 using System.Globalization;
 using ZiaConvert.Core.Abstractions;
 using ZiaConvert.Core.Model;
+using ZiaConvert.Core.Options;
+using ZiaConvert.Core.Processes;
 using ZiaConvert.Engines;
+using ZiaConvert.Engines.Upscale;
 
 namespace ZiaConvert.Cli;
 
@@ -107,8 +110,30 @@ internal static class CliRunner
             return Failure;
         }
 
+        if (options.Video?.ExternalSubtitles is { Count: > 0 } subtitles)
+        {
+            foreach (var subtitle in subtitles)
+            {
+                if (!File.Exists(subtitle.FilePath))
+                {
+                    Console.Error.WriteLine($"Erreur : sous-titre « {subtitle.FilePath} » introuvable.");
+                    return Failure;
+                }
+            }
+        }
+
         Console.Error.WriteLine(
             $"{Path.GetFileName(request.InputPath)}  ->  {Path.GetFileName(request.OutputPath)}");
+
+        if (options.Upscale is { } upscale)
+        {
+            await ShowUpscaleEstimateAsync(services, request.InputPath, upscale, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (options.EstimateSize)
+        {
+            await ShowSizeEstimateAsync(services, request, cancellationToken).ConfigureAwait(false);
+        }
 
         var bar = new ConsoleProgressBar();
         var progress = new Progress<ConversionProgress>(bar.Report);
@@ -133,10 +158,119 @@ internal static class CliRunner
             Console.Error.WriteLine($"  {detail}");
         }
 
+        if (result.VerificationWarning is { Length: > 0 } warning)
+        {
+            Console.Error.WriteLine($"  ATTENTION : {warning}");
+        }
+
         // Le chemin produit part sur la sortie standard : il reste ainsi chainable.
         Console.WriteLine(result.OutputPath);
 
         return Success;
+    }
+
+    /// <summary>
+    /// Affiche une estimation de duree avant de lancer un agrandissement : c'est une
+    /// operation de plusieurs secondes par image, pas instantanee comme le reste des
+    /// conversions, et l'utilisateur doit pouvoir juger avant de s'engager.
+    /// </summary>
+    private static async Task ShowUpscaleEstimateAsync(
+        ConversionServices services,
+        string inputPath,
+        UpscaleOptions upscale,
+        CancellationToken cancellationToken)
+    {
+        var engine = services.Engines.OfType<RealEsrganEngine>().FirstOrDefault();
+
+        if (engine is null)
+        {
+            return;
+        }
+
+        var dimensions = await TryGetImageDimensionsAsync(services, inputPath, cancellationToken).ConfigureAwait(false);
+
+        if (dimensions is not { } size)
+        {
+            return;
+        }
+
+        var estimate = await engine
+            .EstimateDurationAsync(size.Width, size.Height, upscale, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (estimate is { } duration)
+        {
+            var seconds = duration.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+            var outputWidth = size.Width * upscale.Factor;
+            var outputHeight = size.Height * upscale.Factor;
+
+            Console.Error.WriteLine(
+                $"Duree estimee : ~{seconds} s  ({size.Width}x{size.Height} -> {outputWidth}x{outputHeight})");
+        }
+    }
+
+    /// <summary>
+    /// Affiche une estimation de la taille finale avant de lancer une conversion video.
+    /// </summary>
+    /// <remarks>
+    /// Facultatif (voir <see cref="CommandLineOptions.EstimateSize" />) : contrairement a
+    /// l'estimation de duree de l'agrandissement IA, un remux prend deja moins d'une
+    /// seconde — ajouter un echantillonnage systematique alourdirait ce cas le plus
+    /// courant pour un interet marginal.
+    /// </remarks>
+    private static async Task ShowSizeEstimateAsync(
+        ConversionServices services,
+        ConversionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var prepared = await services.Router.PrepareAsync(request, cancellationToken).ConfigureAwait(false);
+        var estimate = await services.FileSizeEstimator.EstimateAsync(prepared, cancellationToken).ConfigureAwait(false);
+
+        if (estimate is null)
+        {
+            return;
+        }
+
+        var label = estimate.IsSampled
+            ? "Taille estimee (extrapolee sur un extrait)"
+            : "Taille estimee (remux, quasi exacte)";
+
+        Console.Error.WriteLine($"{label} : ~{FormatSize(estimate.EstimatedBytes)}");
+    }
+
+    /// <summary>Sonde les dimensions d'une image via ImageMagick, sans lien avec le moteur d'agrandissement.</summary>
+    private static async Task<(int Width, int Height)?> TryGetImageDimensionsAsync(
+        ConversionServices services,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var magick = services.Locator.Locate("magick");
+
+        if (magick is null)
+        {
+            return null;
+        }
+
+        var result = await services.ProcessRunner.RunAsync(
+            new ProcessRequest
+            {
+                FileName = magick,
+                Arguments = ["identify", "-format", "%w %h", path],
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        if (!result.Success)
+        {
+            return null;
+        }
+
+        var parts = result.StandardOutputText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return parts.Length >= 2 &&
+            int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var width) &&
+            int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var height)
+            ? (width, height)
+            : null;
     }
 
     private static async Task<int> ProbeAsync(CommandLineOptions options, CancellationToken cancellationToken)
@@ -290,6 +424,9 @@ internal static class CliRunner
               -o, --output <chemin>   Fichier de sortie (le format vient de l'extension)
               -y, --overwrite         Ecrase la sortie si elle existe
               -v, --verbose           Detaille les commandes executees
+                  --estimate-size     Affiche la taille finale estimee avant de lancer
+                                      (video uniquement ; encode un court extrait pour
+                                      les reglages a qualite constante, exact pour un remux)
 
             VIDEO
               --codec <nom>           auto, copy, h264, h265, av1, vp9, prores
@@ -302,7 +439,17 @@ internal static class CliRunner
                                       mais beaucoup plus lent
                   --hw <nom>          auto, none, nvenc, quicksync, amf
                   --no-remux          Force le reencodage meme si la copie suffisait
+                  --remux-only        Echoue si la copie de flux est impossible, plutot
+                                      que de basculer sans prevenir sur un reencodage
                   --no-audio          Supprime la piste audio
+                  --audio-track <n>   Piste audio a garder (index vu par « zia probe »),
+                                      utile pour un rip multilingue ou avec commentaire
+                  --subtitle-track <n>  Une seule piste de sous-titres a garder
+                  --add-subtitle <chemin>  Integre un fichier .srt/.ass/.ssa/.vtt externe
+                                      a la sortie (mkv uniquement) ; repetable pour
+                                      plusieurs langues
+                  --subtitle-lang <code>  Langue de la derniere piste ajoutee (ex. fre, eng)
+                  --subtitle-title <texte>  Nom affiche par le lecteur pour cette piste
 
             AUDIO
               --audio <nom>           auto, copy, aac, mp3, opus, flac, vorbis, pcm, none
@@ -312,6 +459,27 @@ internal static class CliRunner
             DECOUPE
               -ss, --start <duree>    90, 1:30 ou 00:01:30.5
               -to, --end <duree>
+
+            IMAGE (RAW compris : CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF, PEF, SRW)
+              -q, --quality <n>       Qualite 1-100 (formats avec perte)
+              -w, --width <n>         Largeur cible, hauteur deduite du ratio
+                  --height <n>        Hauteur cible
+                  --no-aspect         Deforme aux dimensions exactes plutot que d'ajuster
+                  --lossless          Encodage sans perte (webp, avif, heic)
+                  --no-metadata       Efface les donnees EXIF/IPTC/XMP
+                  --no-orient         Ne pas appliquer la rotation EXIF automatiquement
+                  --colorspace <nom>  sRGB par defaut
+                  --white-balance <nom>  asshot (defaut), auto, camera — RAW uniquement
+
+            AGRANDISSEMENT PAR IA (Real-ESRGAN, GPU requis)
+              --upscale               Reconstruit du detail plutot que d'etirer les pixels :
+                                      plusieurs secondes par image, contrairement a -w/--height
+                                      qui redimensionne instantanement sans ajouter de detail
+                  --factor <n>        2, 3 ou 4 (defaut 4)
+                  --model <nom>       realesrgan-x4plus (defaut), realesrgan-x4plus-anime,
+                                      realesr-animevideov3
+                  --tile <n>          Taille des tuiles, 0=automatique (defaut)
+                  --gpu <n>           Index du GPU, absent=automatique
 
             EXEMPLES
               zia film.mp4 -o film.mkv
@@ -326,6 +494,33 @@ internal static class CliRunner
 
               zia video.mp4 -o video-4k.mp4 -w 3840
                   Agrandissement par interpolation, sans ajout de detail
+
+              zia photo.cr2 -o photo.jpg
+                  Developpement RAW avec la balance des blancs du boitier
+
+              zia photo.jpg -o photo.webp -q 85
+
+              zia vieille-photo.jpg -o vieille-photo-hd.jpg --upscale --factor 4
+                  Affiche une estimation de duree avant de lancer
+
+              zia rip_dvd.vob -o film.mkv --remux-only
+                  Re-emballe un rip DVD sans reencoder ; echoue clairement si
+                  les codecs source (MPEG-2, AC3...) ne rentrent pas dans mkv
+
+              zia rip_dvd.mkv -o film.mkv --audio-track 2 --subtitle-track 4
+                  Garde une piste audio et une piste de sous-titres precises
+                  (indices vus par « zia probe ») sur un rip multipiste
+
+              zia film.mkv -o film.mkv --add-subtitle vostfr.srt --subtitle-lang fre --subtitle-title VOSTFR
+                  Integre un sous-titre externe a la sortie, sans reencoder
+                  (copie de flux si le reste le permet)
+
+              zia film.mkv -o film.mkv --add-subtitle en.srt --subtitle-lang eng --add-subtitle fr.srt --subtitle-lang fre
+                  Plusieurs langues : --subtitle-lang s'applique au dernier
+                  --add-subtitle rencontre
+
+              zia film.mkv -o film.mp4 --codec h265 -q 22 --estimate-size
+                  Affiche la taille finale avant meme de lancer l'encodage
             """);
 
         return Success;
